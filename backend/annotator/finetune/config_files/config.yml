@@ -1,0 +1,45 @@
+number: '0123456789०१२३४५६७८९'
+symbol: "~!@#`$%^&*()-_+=[]\\{}|;':\",./<>?॰। "
+lang_char: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.ँंःअअंअःआइईउऊऋएऐऑओऔकखगघङचछजझञटठडढणतथदधनऩपफबभमयरऱलळवशषसह़ािीुूृॅेैॉोौ्ॐ॒क़ख़ग़ज़ड़ढ़फ़ॠ'
+experiment_name: 'devanagari_filtered'
+train_data: 'temp'
+valid_data: 'temp/val'
+manualSeed: 1111
+workers: 0
+batch_size: 32 #32
+num_iter: 5
+valInterval: 5
+saved_model: '' #'saved_models/en_filtered/iter_300000.pth'
+FT: False
+optim: False # default is Adadelta
+lr: 1.
+beta1: 0.9
+rho: 0.95
+eps: 0.00000001
+grad_clip: 5
+#Data processing
+select_data: 'train' # this is dataset folder in train_data
+batch_ratio: '1' 
+total_data_usage_ratio: 1.0
+batch_max_length: 250 
+imgH: 50
+imgW: 1150
+rgb: False
+contrast_adjust: False
+sensitive: False
+PAD: True
+contrast_adjust: 0.0
+data_filtering_off: True
+# Model Architecture
+Transformation: 'None'
+FeatureExtraction: 'ResNet'
+SequenceModeling: 'BiLSTM'
+Prediction: 'CTC'
+num_fiducial: 20
+input_channel: 1
+output_channel: 512
+hidden_size: 512
+decode: 'greedy'
+new_prediction: True
+freeze_FeatureFxtraction: False
+freeze_SequenceModeling: False
