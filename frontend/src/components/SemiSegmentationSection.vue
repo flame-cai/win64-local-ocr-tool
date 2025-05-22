@@ -145,8 +145,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch, reactive } from 'vue';
+import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, reactive } from 'vue';
 import { useAnnotationStore } from '@/stores/annotationStore';
+
+const handleKeydown = (e) => {
+  if (!editMode.value) return;
+  if (e.key === 'a') addEdge();
+  if (e.key === 'd') deleteEdge();
+};
+
+onMounted(() => window.addEventListener('keydown', handleKeydown));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
 
 const annotationStore = useAnnotationStore();
 
