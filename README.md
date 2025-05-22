@@ -1,4 +1,5 @@
 # manuscript-annotation-tool
+- requires 6gb GPU
 
 ### To run the backend
 
