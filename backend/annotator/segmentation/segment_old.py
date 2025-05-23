@@ -2,7 +2,6 @@ import os
 import numpy as np
 import cv2
 from scipy.signal import find_peaks
-from skimage import io
 from annotator.segmentation.utils import load_images_from_folder
 
 

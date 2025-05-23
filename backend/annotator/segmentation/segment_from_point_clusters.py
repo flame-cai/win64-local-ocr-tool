@@ -6,6 +6,7 @@ from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import UnivariateSpline
 import math
 
+from annotator.segmentation.utils import loadImage, load_images_from_folder
 
 from skimage import io
 from flask import current_app
@@ -44,45 +45,6 @@ def load_points_and_labels(points_file, labels_file):
 
     return np.array(filtered_points), np.array(filtered_labels)
 
-
-def load_images_from_folder(folder_path):
-    inp_images = []
-    file_names = []
-
-    # Get all files in the directory
-    files = sorted(os.listdir(folder_path))
-
-    for file in files:
-        # Check if the file is an image (PNG or JPG)
-        if file.lower().endswith((".png", ".jpg", ".jpeg", ".tif")):
-            try:
-                # Construct the full file path
-                file_path = os.path.join(folder_path, file)
-
-                # Open the image file
-                image = loadImage(file_path)
-
-                # Append the image and filename to our lists
-                inp_images.append(image)
-                file_names.append(file)
-            except Exception as e:
-                print(f"Error loading {file}: {str(e)}")
-
-    return inp_images, file_names
-
-
-# Function Definitions
-def loadImage(img_file):
-    img = io.imread(img_file)  # RGB order
-    print(f"loading image with shape: {img.shape}")
-    if img.shape[0] == 2:
-        img = img[0]
-    if len(img.shape) == 2:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    if img.shape[2] == 4:
-        img = img[:, :, :3]
-    img = np.array(img)
-    return img
 
 
 def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path="output.png"):
@@ -231,37 +193,36 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path="o
 #     return labeled_bboxes  # List of (x, y, w, h, label)
 
 
-def crop_img(img):
-    sum_rows = np.sum(img, axis=1)
-    sum_cols = np.sum(img, axis=0)
+# def crop_img(img):
+#     sum_rows = np.sum(img, axis=1)
+#     sum_cols = np.sum(img, axis=0)
 
-    # Find indices where sum starts to vary for rows
-    row_start = (
-        np.where(sum_rows != sum_rows[0])[0][0]
-        if np.any(sum_rows != sum_rows[0])
-        else 0
-    )
-    row_end = (
-        np.where(sum_rows != sum_rows[-1])[0][-1]
-        if np.any(sum_rows != sum_rows[-1])
-        else len(sum_rows) - 1
-    )
+#     # Find indices where sum starts to vary for rows
+#     row_start = (
+#         np.where(sum_rows != sum_rows[0])[0][0]
+#         if np.any(sum_rows != sum_rows[0])
+#         else 0
+#     )
+#     row_end = (
+#         np.where(sum_rows != sum_rows[-1])[0][-1]
+#         if np.any(sum_rows != sum_rows[-1])
+#         else len(sum_rows) - 1
+#     )
 
-    # Find indices where sum starts to vary for columns
-    col_start = (
-        np.where(sum_cols != sum_cols[0])[0][0]
-        if np.any(sum_cols != sum_cols[0])
-        else 0
-    )
-    col_end = (
-        np.where(sum_cols != sum_cols[-1])[0][-1]
-        if np.any(sum_cols != sum_cols[-1])
-        else len(sum_cols) - 1
-    )
+#     # Find indices where sum starts to vary for columns
+#     col_start = (
+#         np.where(sum_cols != sum_cols[0])[0][0]
+#         if np.any(sum_cols != sum_cols[0])
+#         else 0
+#     )
+#     col_end = (
+#         np.where(sum_cols != sum_cols[-1])[0][-1]
+#         if np.any(sum_cols != sum_cols[-1])
+#         else len(sum_cols) - 1
+#     )
 
-    # Crop the image using the identified indices
-    return np.copy(img[row_start : row_end + 1, col_start : col_end + 1])
-
+#     # Crop the image using the identified indices
+#     return np.copy(img[row_start : row_end + 1, col_start : col_end + 1])
 
 # def gen_line_images(img2, unique_labels, bounding_boxes):
 #     print("generating line images")
@@ -295,6 +256,25 @@ def crop_img(img):
 #         line_images.append(crop_img(new_img))
 
 #     return line_images
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def detect_line_type(boxes):
     """Detect if boxes form horizontal, vertical, slanted, or curved line"""
@@ -503,7 +483,7 @@ def crop_img(img):
     
     return img[y0:y1, x0:x1]
 
-def run_manual_segmentation(manuscript_name, page):
+def segmentLinesFromPointClusters(manuscript_name, page):
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")

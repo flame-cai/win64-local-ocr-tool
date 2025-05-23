@@ -6,9 +6,9 @@ from PIL import Image
 import torch
 import gc
 
-from annotator.segmentation.segmentation import segment_lines
-from annotator.segmentation.manual_segmentation import run_manual_segmentation
-from annotator.segmentation.layout_analysis import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
+from backend.annotator.segmentation.segment_old import segment_lines
+from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
+from backend.annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
 
 from annotator.recognition.recognition import recognise_characters
 from annotator.finetune.finetune import finetune
@@ -174,6 +174,9 @@ def get_points(manuscript_name, page):
         return {"error": str(e)}, 500
 
 
+
+# FULLY MANUAL LABELING
+
 @bp.route("/segment/<string:manuscript_name>/<string:page>", methods=["POST"])
 def make_segments(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
@@ -185,16 +188,28 @@ def make_segments(manuscript_name, page):
     with open(labels_file, "w") as f:
         f.write("\n".join(map(str, segments)))
 
-    run_manual_segmentation(manuscript_name, page)
+    segmentLinesFromPointClusters(manuscript_name, page)
 
     return {"message": f"succesfully saved labels for page {page}"}, 200
 
 
 
-# GRAPH EDITION CODE
+
+
+
+
+
+
+
+
+
+
+
+# GRAPH BASED LABELLING
 
 @bp.route("/semi-segment/<string:manuscript_name>/<string:page>", methods=["POST"])
 def make_semi_segments(manuscript_name, page):
+    print("REWIRED THE GRAPH")
     try:
         MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
         POINTS_FILEPATH = os.path.join(
@@ -206,7 +221,7 @@ def make_semi_segments(manuscript_name, page):
         
         # Parse request data
         request_data = request.json
-        print("saving updated graph..")
+
         
         # Extract graph data if available
         if 'graph' in request_data:
@@ -236,7 +251,7 @@ def make_semi_segments(manuscript_name, page):
                 json.dump(segments_data, f, indent=2)
 
         # Run manual segmentation after saving labels
-        run_manual_segmentation(manuscript_name, page)
+        segmentLinesFromPointClusters(manuscript_name, page)
         
         return {"message": f"Graph and segmentation data saved for {manuscript_name} page {page}"}, 200
 
