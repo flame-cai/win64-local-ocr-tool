@@ -6,9 +6,9 @@ from PIL import Image
 import torch
 import gc
 
-from backend.annotator.segmentation.segment_old import segment_lines
+from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
-from backend.annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
+from annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
 
 from annotator.recognition.recognition import recognise_characters
 from annotator.finetune.finetune import finetune
