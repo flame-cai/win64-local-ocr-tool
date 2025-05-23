@@ -145,41 +145,10 @@ def gen_line_images(img2,peaks,bounding_boxes,lines, lineheight_baseline_percent
 
 def segment_lines(folder_path, lineheight_baseline_percentile=80, binarize_threshold=100):
     print(folder_path)
-    #m_name = folder_path.split('/')[-2]
     m_name = os.path.basename(os.path.dirname(folder_path))
-    # device = torch.device('cuda') #change to cpu if no gpu
 
-
-    # HEATMAP
     inp_images, file_names = load_images_from_folder(folder_path)
     print("Current Working Directory:", os.getcwd())
-
-    # _detector = CRAFT()
-    # _detector.load_state_dict(copyStateDict(torch.load("instance/models/segmentation/craft_mlt_25k.pth",map_location=device)))
-    # detector = torch.nn.DataParallel(_detector).to(device)
-    # detector.eval()
-    # st = time.time()
-
-    # out_images=[]
-    # points = []
-    # for image,_filename in zip(inp_images, file_names):
-    #     # get region score and affinity score
-    #     region_score, affinity_score = detect(image,detector, device)
-    #     assert region_score.shape == affinity_score.shape
-    #     points_twoD = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
-
-    #     points.append(points_twoD)
-    #     out_images.append(np.copy(region_score))
-
-
-    # if os.path.exists(f'instance/manuscripts/{m_name}/heatmaps') == False:
-    #     os.makedirs(f'instance/manuscripts/{m_name}/heatmaps')
-
-    # if os.path.exists(f'instance/manuscripts/{m_name}/points-2D') == False:
-    #     os.makedirs(f'instance/manuscripts/{m_name}/points-2D')
-
-    # for _img,_filename in zip(out_images,file_names):
-    #     cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.png')}",255*_img)
 
     out_images = []
     for _filename in file_names:
@@ -190,11 +159,6 @@ def segment_lines(folder_path, lineheight_baseline_percentile=80, binarize_thres
         else:
             print(f"Warning: Could not load image at {path}")
         
-    # for points_twoD,_filename in zip(points,file_names):
-    #     np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_twoD, fmt='%d')
-    
-    # print(f"{time.time()-st:.2f} seconds elapsed.....")
-
     print("running old segmentation algorithm")
 
     # ALGORITHM
@@ -225,20 +189,3 @@ def segment_lines(folder_path, lineheight_baseline_percentile=80, binarize_thres
             for i in range(5):
                 cv2.imwrite(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}/line{i+1:03d}.jpg',black_image)
     
-
-
-
-# Create the arg parser
-# parser = argparse.ArgumentParser(description="A simple script to process a path")
-# parser.add_argument('path', type=str, help='The path to folder which contains leaf images')
-# parser.add_argument('--lineheight_baseline_percentile', type=int, default=80, help='Line height baseline is the 80 percentile value of all line heights')
-# parser.add_argument('--binarize_threshold', type=int, default=100, help='Binarize threshold value (default: 100)')
-
-# args = parser.parse_args()
-# folder_path = args.path
-# lineheight_baseline_percentile = args.lineheight_baseline_percentile
-# binarize_threshold = args.binarize_threshold
-
-# #folder_path = "instance/manuscripts/TEST/leaves"
-# segment_lines(folder_path)
-# %%

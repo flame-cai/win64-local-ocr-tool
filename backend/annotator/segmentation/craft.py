@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -263,20 +262,18 @@ def copyStateDict(state_dict):
     return new_state_dict
 
 def detect(img, detector, device):
+    x = [np.transpose(normalizeMeanVariance(img), (2, 0, 1))]
+    x = torch.from_numpy(np.array(x))
+    x = x.to(device)
+    with torch.no_grad():
+        y = detector(x)
+        
+    region_score = y[0,:,:,0].cpu().data.numpy()
+    affinity_score = y[0,:,:,1].cpu().data.numpy()
 
+    # clear GPU memory
+    del x
+    del y
+    torch.cuda.empty_cache()
 
-        x = [np.transpose(normalizeMeanVariance(img), (2, 0, 1))]
-        x = torch.from_numpy(np.array(x))
-        x = x.to(device)
-        with torch.no_grad():
-            y = detector(x)
-            
-        region_score = y[0,:,:,0].cpu().data.numpy()
-        affinity_score = y[0,:,:,1].cpu().data.numpy()
-
-        # clear GPU memory
-        del x
-        del y
-        torch.cuda.empty_cache()
-
-        return region_score,affinity_score
+    return region_score,affinity_score

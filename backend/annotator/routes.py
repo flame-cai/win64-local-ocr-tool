@@ -222,7 +222,6 @@ def make_semi_segments(manuscript_name, page):
         # Parse request data
         request_data = request.json
 
-        
         # Extract graph data if available
         if 'graph' in request_data:
             graph_data = request_data['graph']
@@ -267,12 +266,6 @@ def get_points_and_graph(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     try:
         print("Getting points and generating graph")
-        # IMAGE_FILEPATH = os.path.join(
-        #     MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg"
-        # )
-        # image = plt.imread(IMAGE_FILEPATH)  # Replace with your image path
-        # image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2))
-        # Build potential file paths for jpg and tif files
         filepath_jpg = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
         filepath_tif = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.tif")
         filepath_png = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.png")

@@ -5,10 +5,7 @@ import cv2
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import UnivariateSpline
 import math
-
-from annotator.segmentation.utils import loadImage, load_images_from_folder
-
-from skimage import io
+from annotator.segmentation.utils import loadImage
 from flask import current_app
 
 
@@ -55,7 +52,7 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path="o
     sub-boxes such that each sub-box contains points of only one label. The result is visualized 
     by overlaying both the bounding boxes and the labeled points on the image.
     """
-    import cv2
+    
 
     # Convert image to color if it is grayscale.
     if len(image.shape) == 2:
@@ -126,153 +123,6 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path="o
     print(f"Annotated image saved as: {output_path}")
 
     return labeled_bboxes
-
-
-# def assign_labels_and_plot(
-#     bounding_boxes, points, labels, image, output_path="output.png"
-# ):
-#     """
-#     Assigns labels to given bounding boxes based on the labels of the points they contain. if
-#     a bounding box contains more than one points with different labels, the bounding box is split
-#     such that the split bounding boxes only have points of one label. We also 
-#     visualizes the result by overlaying the bounding boxes and labeled points on the image.
-#     """
-#     # Convert image to color (if grayscale)
-#     if len(image.shape) == 2:
-#         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
-#     labeled_bboxes = []
-#     for bbox in bounding_boxes:
-#         x_min, y_min, w, h = bbox
-#         x_max, y_max = x_min + w, y_min + h
-
-#         # Find labels of points inside this bounding box
-#         assigned_label = []
-#         for (px, py), label in zip(points, labels):
-#             if x_min <= px <= x_max and y_min <= py <= y_max:
-#                 assigned_label.append(label)  # Assign the first found label
-#                 # break  # Stop checking once a label is assigned
-
-#         if len(set(assigned_label)) == 1:  # IF ONLY ONE LABEL PER BOUNDING BOX
-#             labeled_bboxes.append((x_min, y_min, w, h, assigned_label[0]))
-#             # Draw bounding box
-#             cv2.rectangle(
-#                 image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2
-#             )  # Green box
-#             cv2.putText(
-#                 image,
-#                 str(assigned_label[0]),
-#                 (x_min, y_min - 5),
-#                 cv2.FONT_HERSHEY_SIMPLEX,
-#                 0.5,
-#                 (0, 255, 0),
-#                 2,
-#             )
-
-
-#         # TODO handle tall bounding boxes who contain points with more than one labels
-#         # elif len(set(assigned_label)) >1:
-
-#     # Draw points with labels
-#     for (px, py), label in zip(points, labels):
-#         if label is not None:
-#             cv2.circle(image, (px, py), 5, (0, 0, 255), -1)  # Red point
-#             cv2.putText(
-#                 image,
-#                 str(label),
-#                 (px + 5, py - 5),
-#                 cv2.FONT_HERSHEY_SIMPLEX,
-#                 0.5,
-#                 (0, 0, 255),
-#                 2,
-#             )
-#     # Save image
-#     cv2.imwrite(output_path, image)
-#     print(f"Annotated image saved as: {output_path}")
-
-#     return labeled_bboxes  # List of (x, y, w, h, label)
-
-
-# def crop_img(img):
-#     sum_rows = np.sum(img, axis=1)
-#     sum_cols = np.sum(img, axis=0)
-
-#     # Find indices where sum starts to vary for rows
-#     row_start = (
-#         np.where(sum_rows != sum_rows[0])[0][0]
-#         if np.any(sum_rows != sum_rows[0])
-#         else 0
-#     )
-#     row_end = (
-#         np.where(sum_rows != sum_rows[-1])[0][-1]
-#         if np.any(sum_rows != sum_rows[-1])
-#         else len(sum_rows) - 1
-#     )
-
-#     # Find indices where sum starts to vary for columns
-#     col_start = (
-#         np.where(sum_cols != sum_cols[0])[0][0]
-#         if np.any(sum_cols != sum_cols[0])
-#         else 0
-#     )
-#     col_end = (
-#         np.where(sum_cols != sum_cols[-1])[0][-1]
-#         if np.any(sum_cols != sum_cols[-1])
-#         else len(sum_cols) - 1
-#     )
-
-#     # Crop the image using the identified indices
-#     return np.copy(img[row_start : row_end + 1, col_start : col_end + 1])
-
-# def gen_line_images(img2, unique_labels, bounding_boxes):
-#     print("generating line images")
-#     # change here
-#     #   global lineheight_baseline_percentile
-#     line_images = []
-#     pad = 5
-#     for l in unique_labels:
-#         # Filter bounding boxes for the current label
-#         filtered_boxes = [box for box in bounding_boxes if box[4] == l]
-#         if not filtered_boxes:
-#             continue
-
-#         # Calculate the total width and maximum height for the new image
-#         total_width = (
-#             max(x for x, _, _, _, _ in filtered_boxes) + 500
-#         )  # 10 pixels padding on each side
-#         max_height = (
-#             max(h for _, _, _, h, _ in filtered_boxes) + 250
-#         )  # 5 pixels padding top and bottom
-#         miny = min(y for _, y, _, _, _ in filtered_boxes)
-#         # Create an empty image for this label
-#         new_img = np.ones((max_height, total_width), dtype=np.uint8) * np.int32(
-#             np.median(img2)
-#         )
-
-#         for box in filtered_boxes:
-#             x, y, w, h, l = box
-#             blob = img2[y - pad : y + h + pad, x - 10 : x + w + 10]
-#             new_img[y - miny : y - miny + h + 2 * pad, x - 10 : x + w + 10] = blob
-#         line_images.append(crop_img(new_img))
-
-#     return line_images
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -525,50 +375,3 @@ def segmentLinesFromPointClusters(manuscript_name, page):
         cv2.imwrite(os.path.join(LINES_DIR, f"line{i+1:03d}.jpg"),line_images[i])
 
 
-
-
-# m_name = 'man-seg-backup'
-# MANUSCRIPT_DIR = f'instance/manuscripts/{m_name}/'
-# HEATMAP_DIR = MANUSCRIPT_DIR+'/heatmaps'
-# IMAGES_DIR = MANUSCRIPT_DIR+'/leaves'
-# LINES_DIR = MANUSCRIPT_DIR+'/lines'
-# ANNOT_DIR = MANUSCRIPT_DIR+'/points-2D'
-
-# inp_images, inp_file_names = load_images_from_folder(IMAGES_DIR)
-# print(inp_file_names)
-# heatmaps_images, heatmap_file_names = load_images_from_folder(HEATMAP_DIR)
-# print(heatmap_file_names)
-
-# binarize_threshold=100
-
-
-# for det,image,file_name in zip(heatmaps_images,inp_images,inp_file_names):
-
-#     filtered_points, filtered_labels = load_points_and_labels(f'{ANNOT_DIR}/{file_name[:-4]}_points.txt', f'{ANNOT_DIR}/{file_name[:-4]}_labels.txt')
-
-#     # handling loading heatmaps
-#     det = det.squeeze()  # Removes single-dimensional entries (e.g., (H, W, 1) → (H, W))
-#     print(det.shape)
-#     if len(det.shape) == 3:
-#         det = det[:, :, 0]  # Keep only one channel
-#     print(det.shape)
-
-#     #print(image.shape) this is x2 scale
-#     img2 = cv2.cvtColor(cv2.resize(image, det.shape[::-1]), cv2.COLOR_BGR2GRAY)
-
-
-#     bounding_boxes = gen_bounding_boxes(det, binarize_threshold)
-#     labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_points, filtered_labels, img2, output_path=ANNOT_DIR+'/'+file_name)
-
-#     # Sort by the numeric label (5th element)
-#     sorted_bboxes = sorted(labeled_bboxes, key=lambda x: x[4])
-
-#     # Get unique labels
-#     unique_labels = set(label for _, _, _, _, label in labeled_bboxes)
-#     print(unique_labels)
-#     line_images = gen_line_images(img2,unique_labels,labeled_bboxes)
-
-#     if os.path.exists(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}') == False:
-#         os.makedirs(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}')
-#     for i in range(len(line_images)):
-#         cv2.imwrite(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}/line{i+1:03d}.jpg',line_images[i])

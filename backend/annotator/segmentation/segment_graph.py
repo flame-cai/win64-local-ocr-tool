@@ -1,52 +1,21 @@
 import os
-
-#importing GNN libraries
 import numpy as np
 from scipy.spatial import cKDTree
-from matplotlib.colors import ListedColormap
-cmap = ListedColormap(['grey', 'red'])
 from sklearn.cluster import DBSCAN
 from collections import Counter
-import numpy as np
 import torch
 from torch_geometric.data import Data
 import json
-import os
 import cv2
-from annotator.segmentation.craft import CRAFT, copyStateDict, detect
-from annotator.segmentation.utils import loadImage
 from scipy.ndimage import maximum_filter
 from scipy.ndimage import label
+
+from annotator.segmentation.craft import CRAFT, copyStateDict, detect
+from annotator.segmentation.utils import load_images_from_folder
 
 
 # ------------------heatmap to point cloud---------
 
-def load_images_from_folder(folder_path):
-    inp_images = []
-    file_names = []
-    
-    # Get all files in the directory
-    files = sorted(os.listdir(folder_path))
-    
-    for file in files:
-        # Check if the file is an image (PNG or JPG)
-        if file.lower().endswith(('.png', '.jpg', '.jpeg','.tif')):
-            try:
-                # Construct the full file path
-                file_path = os.path.join(folder_path, file)
-                
-                # Open the image file
-                image = loadImage(file_path)
-                
-                # Append the image and filename to our lists
-                inp_images.append(image)
-                file_names.append(file)
-            except Exception as e:
-                print(f"Error loading {file}: {str(e)}")
-    
-    return inp_images, file_names
-
-# HeatMap to Point Cloud
 def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
     """
     Convert a 2D heatmap to a point cloud by identifying local maxima and generating
