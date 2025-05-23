@@ -82,7 +82,6 @@ def loadImage(img_file):
     if img.shape[2] == 4:
         img = img[:, :, :3]
     img = np.array(img)
-
     return img
 
 

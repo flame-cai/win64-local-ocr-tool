@@ -12,7 +12,134 @@ import torch
 from torch_geometric.data import Data
 import json
 import os
+import cv2
+from annotator.segmentation.craft import CRAFT, copyStateDict, detect
+from annotator.segmentation.utils import loadImage
+from scipy.ndimage import maximum_filter
+from scipy.ndimage import label
 
+
+# ------------------heatmap to point cloud---------
+
+def load_images_from_folder(folder_path):
+    inp_images = []
+    file_names = []
+    
+    # Get all files in the directory
+    files = sorted(os.listdir(folder_path))
+    
+    for file in files:
+        # Check if the file is an image (PNG or JPG)
+        if file.lower().endswith(('.png', '.jpg', '.jpeg','.tif')):
+            try:
+                # Construct the full file path
+                file_path = os.path.join(folder_path, file)
+                
+                # Open the image file
+                image = loadImage(file_path)
+                
+                # Append the image and filename to our lists
+                inp_images.append(image)
+                file_names.append(file)
+            except Exception as e:
+                print(f"Error loading {file}: {str(e)}")
+    
+    return inp_images, file_names
+
+# HeatMap to Point Cloud
+def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
+    """
+    Convert a 2D heatmap to a point cloud by identifying local maxima and generating
+    points with density proportional to the heatmap intensity.
+    
+    Parameters:
+    -----------
+    heatmap : numpy.ndarray
+        2D array representing the heatmap
+    min_peak_value : float
+        Minimum value for a peak to be considered (normalized between 0 and 1)
+    min_distance : int
+        Minimum distance between peaks in pixels
+        
+    Returns:
+    --------
+    points : numpy.ndarray
+        Array of shape (N, 2) containing the generated points
+    """
+    # Normalize heatmap to [0, 1]
+    heatmap_norm = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+    
+    # Find local maxima
+    local_max = maximum_filter(heatmap_norm, size=min_distance)
+    peaks = (heatmap_norm == local_max) & (heatmap_norm > min_peak_value)
+    
+    # Label connected components
+    labeled_peaks, num_peaks = label(peaks)
+    
+    points = []
+    
+    # For each peak, generate points
+    height = heatmap.shape[0]  # Get the height of the heatmap
+    for peak_idx in range(1, num_peaks + 1):
+        # Get peak location
+        peak_y, peak_x = np.where(labeled_peaks == peak_idx)[0][0], np.where(labeled_peaks == peak_idx)[1][0]
+        points.append([peak_x, peak_y])
+        #points.append([peak_x, height - 1 - peak_y])  # This line is modified
+
+    return np.array(points)
+
+
+
+def images2points(folder_path):
+    print(folder_path)
+    #m_name = folder_path.split('/')[-2]
+    m_name = os.path.basename(os.path.dirname(folder_path))
+    device = torch.device('cuda') #change to cpu if no gpu
+
+
+    # HEATMAP
+    inp_images, file_names = load_images_from_folder(folder_path)
+    print("Current Working Directory:", os.getcwd())
+
+    _detector = CRAFT()
+    _detector.load_state_dict(copyStateDict(torch.load("instance/models/segmentation/craft_mlt_25k.pth",map_location=device)))
+    detector = torch.nn.DataParallel(_detector).to(device)
+    detector.eval()
+
+
+    out_images=[]
+    points = []
+    for image,_filename in zip(inp_images, file_names):
+        # get region score and affinity score
+        region_score, affinity_score = detect(image,detector, device)
+        assert region_score.shape == affinity_score.shape
+        points_twoD = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
+
+        points.append(points_twoD)
+        out_images.append(np.copy(region_score))
+
+
+    if os.path.exists(f'instance/manuscripts/{m_name}/heatmaps') == False:
+        os.makedirs(f'instance/manuscripts/{m_name}/heatmaps')
+
+    if os.path.exists(f'instance/manuscripts/{m_name}/points-2D') == False:
+        os.makedirs(f'instance/manuscripts/{m_name}/points-2D')
+
+    for _img,_filename in zip(out_images,file_names):
+        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.png')}",255*_img)
+        
+    for points_twoD,_filename in zip(points,file_names):
+        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_twoD, fmt='%d')
+
+        # clear GPU memory
+    del detector
+    del _detector
+    torch.cuda.empty_cache()
+    
+
+
+
+#-----------------------------------------------------------
 
 def generate_layout_graph(points):
     """
@@ -324,3 +451,8 @@ def generate_labels_from_graph(graph_data):
                 labels[node_id] = label
     
     return labels
+
+
+
+
+

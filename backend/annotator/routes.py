@@ -8,7 +8,7 @@ import gc
 
 from annotator.segmentation.segmentation import segment_lines
 from annotator.segmentation.manual_segmentation import run_manual_segmentation
-from annotator.segmentation.layout_analysis import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph
+from annotator.segmentation.layout_analysis import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
 
 from annotator.recognition.recognition import recognise_characters
 from annotator.finetune.finetune import finetune
@@ -102,6 +102,9 @@ def annotate():
         filename = request.files[file].filename
         request.files[file].save(os.path.join(leaves_folder_path, filename))
 
+    print("image2heatmap2points")
+    images2points(os.path.join(folder_path, "leaves"))
+    print("now segmenting lines the old way")
     segment_lines(os.path.join(folder_path, "leaves"))
     lines = recognise_characters(folder_path, model, manuscript_name)
     torch.cuda.empty_cache()
@@ -309,7 +312,6 @@ def get_points_and_graph(manuscript_name, page):
             
         # Convert to numeric values
         points = [[float(coord) for coord in point] for point in points_raw]
-        
         # Apply the layout analysis logic to generate the graph
         graph_data = generate_layout_graph(points)
         save_graph_for_gnn(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
