@@ -91,7 +91,7 @@
             :cx="scaleX(node.x)"
             :cy="scaleY(node.y)"
             :r="isNodeSelected(index) ? 6 : 3"
-            :fill="getNodeFill(index)"
+            :fill="isNodeSelected(index) ? '#ff9500' : '#2ecc71'"
             :fill-opacity="0.8"
             @click="editMode && onNodeClick(index, $event)"
           />
@@ -161,29 +161,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
 const annotationStore = useAnnotationStore();
 
 const manuscriptName = computed(() => Object.keys(annotationStore.recognitions)[0] || '');
-
-// --- Local Page Management ---
-// Initialize localCurrentPage. Try from store if available, fallback to '1'.
-// Page numbers are kept as strings for consistency.
-const localCurrentPage = ref(String(annotationStore.currentPage || '1'));
-// currentPage computed property now uses the local state.
-const currentPage = computed(() => localCurrentPage.value);
-
-// Internal function to update localCurrentPage.
-// This will trigger the watcher to fetch new page data.
-const _setCurrentPageInternal = (newPage) => {
-  const pageStr = String(newPage);
-  if (localCurrentPage.value !== pageStr) {
-    localCurrentPage.value = pageStr;
-  }
-};
-// --- End Local Page Management ---
+const currentPage = computed(() => annotationStore.currentPage);
 
 const loading = ref(true);
 const error = ref(null);
 const dimensions = ref([0, 0]);
-const points = ref([]); // Raw points from data.points
-const graph = ref({ nodes: [], edges: [] }); // Original graph from server for the current page
+const points = ref([]);
+const graph = ref({ nodes: [], edges: [] });
 const imageData = ref('');
 const imageLoaded = ref(false);
 const showPoints = ref(true);
@@ -194,90 +178,87 @@ const editMode = ref(true);
 const selectedNodes = ref([]);
 const tempEndPoint = ref(null);
 const modifications = ref([]);
-const workingGraph = reactive({ nodes: [], edges: [] }); // Editable copy of the graph
+const workingGraph = reactive({ nodes: [], edges: [] });
 
-// Scale factor
-const scaleFactor = 0.5;
+// Scale factor (similar to the Python code's resize)
+const scaleFactor = 0.5; // This is equivalent to dividing by 2 as in your Python code
+
+// Calculate scaled dimensions
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor));
 const scaledHeight = computed(() => Math.floor(dimensions.value[1] * scaleFactor));
 
+// Scale functions to map original coordinates to scaled view
 const scaleX = (x) => x * scaleFactor;
 const scaleY = (y) => y * scaleFactor;
 
-const container = ref(null); // Ref for the SVG container
+// Container ref for potential scrolling/zooming features
+const container = ref(null);
 
 const updateCanvasSize = (width, height) => {
   dimensions.value = [width, height];
 };
 
 const fetchPageData = async () => {
-  if (!manuscriptName.value || !currentPage.value) {
-    console.log("Skipping fetch: manuscriptName or currentPage is not set.", manuscriptName.value, currentPage.value);
-    loading.value = false; // Ensure loading state is reset
-    return;
-  }
+  if (!manuscriptName.value || !currentPage.value) return;
   
   loading.value = true;
   error.value = null;
-  
-  // Reset states for the new page
-  resetSelection();
-  modifications.value = [];
+  points.value = [];
+  graph.value = { nodes: [], edges: [] };
+  imageData.value = '';
+  imageLoaded.value = false;
   
   try {
     console.log(`Fetching data for manuscript: ${manuscriptName.value}, page: ${currentPage.value}`);
     const response = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscriptName.value}/${currentPage.value}`
+      import.meta.env.VITE_BACKEND_URL + `/semi-segment/${manuscriptName.value}/${currentPage.value}`
     );
     
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || errorData.detail || 'Failed to fetch page data');
+      throw new Error(errorData.error || 'Failed to fetch page data');
     }
     
     const data = await response.json();
-    console.log("Received data for page:", currentPage.value, "Keys:", Object.keys(data));
+    console.log("Received data:", Object.keys(data));
     
+    // Update canvas size
     updateCanvasSize(data.dimensions[0], data.dimensions[1]);
     
+    // Process points
     points.value = data.points.map(point => ({
       coordinates: [point[0], point[1]],
       segment: null,
     }));
     
+    // Process graph
     if (data.graph) {
       graph.value = data.graph;
-    } else {
-      graph.value = { nodes: [], edges: [] }; // Ensure graph is reset if not in data
+      // Clone to working graph
+      resetWorkingGraph();
     }
-    resetWorkingGraph(); // Initialize workingGraph from the new graph.value
     
+    // Process image
     if (data.image) {
+      console.log(`Loading image data, length: ${data.image.length}`);
       imageData.value = data.image;
-      imageLoaded.value = true; // Assume loaded if data URL is present
     } else {
-      imageData.value = '';
-      imageLoaded.value = false;
+      console.log("No image data found in response");
     }
   } catch (err) {
     console.error('Error fetching page data:', err);
     error.value = err.message || 'Failed to load page data';
-    // Clear data on error to avoid showing stale information
-    points.value = [];
-    graph.value = { nodes: [], edges: [] };
-    resetWorkingGraph(); // Reset to empty graph
-    imageData.value = '';
-    imageLoaded.value = false;
   } finally {
     loading.value = false;
   }
 };
 
 const resetWorkingGraph = () => {
-  // Deep clone the original graph for the current page to the working graph
+  // Deep clone the original graph to working graph
   workingGraph.nodes = JSON.parse(JSON.stringify(graph.value.nodes || []));
   workingGraph.edges = JSON.parse(JSON.stringify(graph.value.edges || []));
-  // Selections and modifications are typically reset when page changes or explicitly.
+  resetSelection();
+  modifications.value = [];
 };
 
 const resetSelection = () => {
@@ -287,22 +268,30 @@ const resetSelection = () => {
 
 const onNodeClick = (nodeIndex, event) => {
   event.stopPropagation();
+  
+  // If node is already selected, deselect it
   const existingIndex = selectedNodes.value.indexOf(nodeIndex);
   if (existingIndex !== -1) {
-    selectedNodes.value.splice(existingIndex, 1); // Deselect if already selected
-  } else {
-    if (selectedNodes.value.length < 2) {
-      selectedNodes.value.push(nodeIndex); // Add to selection (max 2)
-    } else {
-      selectedNodes.value = [nodeIndex]; // Replace selection if 2 already selected
-    }
+    selectedNodes.value.splice(existingIndex, 1);
+    return;
   }
-  tempEndPoint.value = null; // Clear temporary line on new click
+  
+  // Add to selection (but limit to 2 nodes)
+  if (selectedNodes.value.length < 2) {
+    selectedNodes.value.push(nodeIndex);
+  } else {
+    // Replace selection if already have 2 nodes
+    selectedNodes.value = [nodeIndex];
+  }
+  
+  tempEndPoint.value = null;
 };
 
 const onEdgeClick = (edge, event) => {
   event.stopPropagation();
-  selectedNodes.value = [edge.source, edge.target]; // Select the two nodes forming the edge
+  
+  // Select the nodes that form this edge
+  selectedNodes.value = [edge.source, edge.target];
 };
 
 const onBackgroundClick = () => {
@@ -318,61 +307,99 @@ const edgeExists = (nodeA, nodeB) => {
 
 const addEdge = () => {
   if (selectedNodes.value.length !== 2) return;
+  
   const [source, target] = selectedNodes.value;
+  
+  // Check if edge already exists
   if (edgeExists(source, target)) {
     console.log('Edge already exists');
     return;
   }
-  const newEdge = { source, target, label: 0, modified: true }; // Default label, mark as modified
-  workingGraph.edges.push(newEdge);
-  modifications.value.push({ type: 'add', source, target, label: 0 }); // Track modification
+  
+  // Add edge to working graph
+  workingGraph.edges.push({
+    source,
+    target,
+    label: 0, // Default label for same-line connection
+    modified: true
+  });
+  
+  // Track modification
+  modifications.value.push({
+    type: 'add',
+    source,
+    target,
+    label: 0
+  });
+  
   resetSelection();
 };
 
 const deleteEdge = () => {
   if (selectedNodes.value.length !== 2) return;
+  
   const [source, target] = selectedNodes.value;
+  
+  // Find the edge index
   const edgeIndex = workingGraph.edges.findIndex(e => 
     (e.source === source && e.target === target) ||
     (e.source === target && e.target === source)
   );
+  
   if (edgeIndex === -1) {
     console.log('Edge not found');
     return;
   }
+  
+  // Track modification before removing
   const removedEdge = workingGraph.edges[edgeIndex];
-  modifications.value.push({ // Track deletion
+  modifications.value.push({
     type: 'delete',
     source: removedEdge.source,
     target: removedEdge.target,
-    label: removedEdge.label 
+    label: removedEdge.label
   });
-  workingGraph.edges.splice(edgeIndex, 1); // Remove edge
+  
+  // Remove edge
+  workingGraph.edges.splice(edgeIndex, 1);
+  
   resetSelection();
 };
 
 const undoModification = (index) => {
   const mod = modifications.value[index];
+  
   if (mod.type === 'add') {
-    // Find and remove the added edge (the one marked as 'modified' potentially)
+    // Find and remove the added edge
     const edgeIndex = workingGraph.edges.findIndex(e => 
-      e.source === mod.source && e.target === mod.target && e.modified
+      (e.source === mod.source && e.target === mod.target) ||
+      (e.source === mod.target && e.target === mod.source)
     );
-    if (edgeIndex !== -1) workingGraph.edges.splice(edgeIndex, 1);
+    
+    if (edgeIndex !== -1) {
+      workingGraph.edges.splice(edgeIndex, 1);
+    }
   } else if (mod.type === 'delete') {
-    // Re-add the deleted edge (not marked as 'modified' unless it was originally so)
-    workingGraph.edges.push({ source: mod.source, target: mod.target, label: mod.label });
+    // Re-add the deleted edge
+    workingGraph.edges.push({
+      source: mod.source,
+      target: mod.target,
+      label: mod.label
+    });
   }
-  modifications.value.splice(index, 1); // Remove this modification from the list
+  
+  // Remove this modification from the list
+  modifications.value.splice(index, 1);
 };
 
 const resetModifications = () => {
-  resetWorkingGraph(); // Re-clones from original graph.value for the current page
-  modifications.value = []; // Clear modification log
-  resetSelection(); // Clear any active selections
+  resetWorkingGraph();
 };
 
-const isNodeSelected = (nodeIndex) => selectedNodes.value.includes(nodeIndex);
+// #TODO add code to save the updated graph
+const isNodeSelected = (nodeIndex) => {
+  return selectedNodes.value.includes(nodeIndex);
+};
 
 const isEdgeSelected = (edge) => {
   return selectedNodes.value.length === 2 &&
@@ -381,194 +408,147 @@ const isEdgeSelected = (edge) => {
 };
 
 const getEdgeColor = (edge) => {
-  if (edge.modified) return '#ff9500'; // Orange for modified edges
-  return edge.label === 0 ? '#3498db' : '#e74c3c'; // Blue for same-line, Red for cross-line (original logic)
+  // Modified edges get a different color
+  if (edge.modified) return '#ff9500';
+  // Original edge coloring logic
+  return edge.label === 0 ? '#3498db' : '#e74c3c';
 };
 
-// --- Page Navigation with Local setCurrentPage ---
-const nextPage = async () => {
+const nextPage = async () => { // Make it async if saveModifications is async
   if (modifications.value.length > 0) {
-    const confirmSave = confirm('You have unsaved changes. Do you want to save them before moving to the next page?');
-    if (confirmSave) {
+    if (confirm('You have unsaved changes. Do you want to save them before moving to the next page?')) {
       try {
-        await saveModifications(); // saveModifications clears modifications on success
-      } catch (e) {
-        console.error("Save failed, not navigating:", e);
-        return; // Save failed, do not navigate
+        await saveModifications(); // Assuming saveModifications is async and returns a Promise
+        annotationStore.nextPage();
+      } catch (err) {
+        console.error("Failed to save, not navigating to next page:", err);
+        // Optionally, inform the user about the save failure
       }
     } else {
-      // User chose not to save, discard changes
-      modifications.value = [];
-      resetWorkingGraph(); // Revert working graph to original state for current page
+      modifications.value = []; // Discard changes
+      annotationStore.nextPage();
     }
+  } else {
+    annotationStore.nextPage();
   }
-  // Proceed to next page
-  const nextPageNumber = Number(currentPage.value) + 1;
-  // TODO: Add a check for max page number if available from store or props
-  _setCurrentPageInternal(String(nextPageNumber));
 };
 
-const previousPage = async () => {
+const previousPage = async () => { // Make it async
   if (modifications.value.length > 0) {
-    const confirmSave = confirm('You have unsaved changes. Do you want to save them before moving to the previous page?');
-    if (confirmSave) {
+    if (confirm('You have unsaved changes. Do you want to save them before moving to the previous page?')) {
       try {
         await saveModifications();
-      } catch (e) {
-        console.error("Save failed, not navigating:", e);
-        return; // Save failed, do not navigate
+        annotationStore.previousPage();
+      } catch (err) {
+        console.error("Failed to save, not navigating to previous page:", err);
       }
     } else {
-      modifications.value = [];
-      resetWorkingGraph();
+      modifications.value = []; // Discard changes
+      annotationStore.previousPage();
     }
-  }
-  // Proceed to previous page
-  const prevPageNumber = Number(currentPage.value) - 1;
-  if (prevPageNumber >= 1) { // Assuming pages are 1-indexed
-    _setCurrentPageInternal(String(prevPageNumber));
+  } else {
+    annotationStore.previousPage();
   }
 };
-// --- End Page Navigation ---
 
+// Add mouse move handler for visualization when selecting nodes
 const handleMouseMove = (event) => {
-  if (!editMode.value || !container.value || selectedNodes.value.length !== 1) return;
+  if (!editMode.value || selectedNodes.value.length !== 1) return;
+  
   const rect = container.value.getBoundingClientRect();
   tempEndPoint.value = {
-    x: event.clientX - rect.left, // Position relative to the container
+    x: event.clientX - rect.left,
     y: event.clientY - rect.top
   };
 };
 
-// Watch for local page changes to fetch data
-watch(localCurrentPage, (newPage, oldPage) => {
-  // Ensure this watcher doesn't fire for the initial value or no-change scenarios
-  if (newPage && newPage !== oldPage) {
-    console.log(`Local current page changed from ${oldPage} to ${newPage}. Fetching data.`);
-    // Unsaved changes are handled *before* localCurrentPage is updated by nextPage/previousPage.
-    // So, we can directly fetch data here.
-    fetchPageData();
-  }
-});
+// Watch for page changes
+watch(
+  () => annotationStore.currentPage,
+  (newPage, oldPage) => {
+    if (newPage) {
+      // Fetch data if the page ID actually changed, or if it's an initial load for this page
+      // (e.g. newPage is set, but imageLoaded.value is false)
+      console.log(`Component Watcher: currentPage changed from ${oldPage} to ${newPage}.`);
+      fetchPageData(); // Your existing function to fetch page-specific details
+    } else if (oldPage && !newPage) {
+      // currentPage was cleared (e.g., after reset or no pages available)
+      console.log("Component Watcher: currentPage became undefined. Clearing local data.");
+      // Reset component's page-specific data
+      points.value = [];
+      graph.value = { nodes: [], edges: [] };
+      imageData.value = '';
+      imageLoaded.value = false;
+      modifications.value = [];
+      resetWorkingGraph(); // Your function to reset working graph
+      loading.value = false; // Or true if you want to show a loading state for "no page"
+      error.value = null;
+    }
+  },
+  { immediate: true } // Crucial: runs the watcher handler immediately on component mount
+);
 
-watch(editMode, (newValue, oldValue) => {
-  if (newValue === oldValue) return; // No change
+// Watch for edit mode toggle
+watch(editMode, (newValue) => {
   if (newValue) {
-    // Add mouse move listener when entering edit mode (typically on document for wider capture area)
+    // Add mouse move listener when entering edit mode
     document.addEventListener('mousemove', handleMouseMove);
   } else {
     // Remove listener when leaving edit mode
+    // It's safe to call removeEventListener even if the listener wasn't added for some reason
     document.removeEventListener('mousemove', handleMouseMove);
-    resetSelection(); // Clear selection when exiting edit mode
+    resetSelection();
   }
-});
+}, { immediate: true }); // <--- ADD THIS
 
-// Initial data fetch and setup
-onMounted(() => {
-  // localCurrentPage is already initialized.
-  // fetchPageData will use the correct initial page.
-  fetchPageData();
-  
-  // If edit mode is initially true, add the mouse move listener
-  if (editMode.value) {
-    document.addEventListener('mousemove', handleMouseMove);
-  }
-});
 
-// Clean up listeners
+
+
+
+// Clean up
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleMouseMove);
-  // The keydown listener is handled by onBeforeUnmount, which is appropriate.
 });
 
 const saveModifications = async () => {
   try {
-    console.log('Saving modifications for page:', currentPage.value);
-    // Backend expects the full graph structure reflecting all changes.
-    const payload = {
+    console.log('Saving modifications and generating line labels...');
+    
+    // Prepare the request with the modified graph data
+    const request = {
       graph: workingGraph,
-      // If your backend also needs points or segment data, include it here:
-      // points: points.value.map(point => point.segment), 
+      modifications: modifications.value,
+      points: points.value.map(point => point.segment)
     };
     
     const response = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscriptName.value}/${currentPage.value}`,
+      import.meta.env.VITE_BACKEND_URL + 
+      `/semi-segment/${manuscriptName.value}/${currentPage.value}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
       }
     );
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || errorData.error || 'Failed to save modifications');
+      throw new Error('Failed to save modifications and generate labels');
     }
     
-    // const result = await response.json(); // Process result if backend returns updated data
-
-    // Update the base graph (graph.value) to reflect the saved changes
+    // Update the original graph with the working graph
     graph.value = JSON.parse(JSON.stringify(workingGraph));
-    // Clear pending modifications list as they are now saved
     modifications.value = [];
     
-    // Mark all edges in the workingGraph as no longer 'modified' since they are now persisted
-    workingGraph.edges.forEach(edge => {
-      delete edge.modified;
-    });
-    
-    console.log('Graph modifications saved successfully for page:', currentPage.value);
-    // Optionally, you might want to re-fetch data if the backend process modifies it further (e.g., re-labels)
-    // await fetchPageData(); // Uncomment if a full refresh is needed post-save
-
+    console.log('Graph modifications saved and labels generated successfully');
   } catch (err) {
     console.error('Error saving modifications:', err);
     error.value = err.message || 'Failed to save modifications';
-    throw err; // Re-throw so calling functions (nextPage/previousPage) can handle it
   }
 };
 
-// --- Node Degree Calculation and Styling ---
-const nodeDegrees = computed(() => {
-  const degrees = {};
-  if (!workingGraph.nodes || workingGraph.nodes.length === 0) {
-    return degrees;
-  }
-  // Initialize degrees for all node indices based on workingGraph.nodes
-  for (let i = 0; i < workingGraph.nodes.length; i++) {
-    degrees[i] = 0;
-  }
-  // Calculate degrees by iterating through edges
-  for (const edge of workingGraph.edges) {
-    if (degrees[edge.source] !== undefined) {
-      degrees[edge.source]++;
-    }
-    if (degrees[edge.target] !== undefined) {
-      degrees[edge.target]++;
-    }
-  }
-  return degrees;
-});
 
-// Function to determine if a node has a high degree (3 or more edges)
-const isNodeHighDegree = (nodeIndex) => {
-  // nodeDegrees.value might be {} if nodes array is empty
-  return (nodeDegrees.value[nodeIndex] || 0) >= 3;
-};
-
-// Helper function intended for use in the template to determine node fill color.
-// Example usage in template: <circle ... :fill="getNodeFill(nodeIndex)" />
-// All top-level bindings in <script setup> are automatically available to the template.
-const getNodeFill = (nodeIndex) => {
-  if (isNodeHighDegree(nodeIndex)) {
-    return 'red'; // Nodes with 3+ edges are red
-  }
-  if (isNodeSelected(nodeIndex)) {
-    return '#ff9500'; // Selected nodes are orange (example color)
-  }
-  // Provide a default color for nodes if not high-degree or selected
-  return '#888888'; // A generic gray, adjust as needed
-};
 
 </script>
 
