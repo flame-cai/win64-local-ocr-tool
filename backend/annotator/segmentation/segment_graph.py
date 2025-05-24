@@ -369,6 +369,73 @@ def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn
     
     return torch_path
 
+def load_graph_for_gnn(manuscript_name,
+                       page_number,
+                       input_dir='gnn_graphs',
+                       update=False):
+    """
+    Load a previously saved PyTorch Geometric graph Data object.
+    
+    Args:
+        manuscript_name (str): Name of the manuscript
+        page_number (int or str): Page number
+        input_dir (str): Directory where the graph files live
+        update (bool): If True, look for the "_graph_updated.pt" version
+    
+    Returns:
+        Data: The loaded PyG Data object
+    
+    Raises:
+        FileNotFoundError: If the expected .pt file is not found
+    """
+    # Choose filename suffix based on update flag
+    suffix = "_graph_updated.pt" if update else "_graph.pt"
+    filename = f"{manuscript_name}_page{page_number}{suffix}"
+    full_path = os.path.join(input_dir, filename)
+    
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"No graph file found at: {full_path}")
+    
+    # Load and return the Data object
+    data = torch.load(full_path)
+    return data_to_serializable_graph_dict(data)
+
+def data_to_serializable_graph_dict(data):
+    """
+    Convert a PyTorch Geometric Data object into your JSON-serializable graph structure.
+
+    Args:
+        data (Data): The PyG Data object
+
+    Returns:
+        dict: JSON-serializable dictionary in desired format
+    """
+    # Nodes
+    nodes = [
+        {"id": i, "x": float(coord[0]), "y": float(coord[1])}
+        for i, coord in enumerate(data.x.tolist())
+    ]
+
+    # Edges
+    edges = []
+    edge_index = data.edge_index.tolist()
+    edge_attr = data.edge_attr.tolist()
+
+    for i in range(len(edge_attr)):
+        source = int(edge_index[0][i])
+        target = int(edge_index[1][i])
+        label = int(edge_attr[i][0])  # Assuming edge_attr is shape [num_edges, 1]
+        edges.append({"source": source, "target": target, "label": label})
+
+    graph_data = {
+        "nodes": nodes,
+        "edges": edges,
+        "num_nodes": data.num_nodes,
+        "manuscript": getattr(data, 'manuscript', None),
+        "page": getattr(data, 'page', None)
+    }
+
+    return graph_data
 
 def generate_labels_from_graph(graph_data):
     """

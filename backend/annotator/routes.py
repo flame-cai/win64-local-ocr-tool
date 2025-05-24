@@ -8,7 +8,7 @@ import gc
 
 from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
-from annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, generate_labels_from_graph, images2points
+from annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
 
 from annotator.recognition.recognition import recognise_characters
 from annotator.finetune.finetune import finetune
@@ -320,9 +320,25 @@ def get_points_and_graph(manuscript_name, page):
             
         # Convert to numeric values
         points = [[float(coord) for coord in point] for point in points_raw]
-        # Apply the layout analysis logic to generate the graph
-        graph_data = generate_layout_graph(points)
-        save_graph_for_gnn(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
+
+
+        # Build the expected file name (if old graph exists)
+        graph_file_name = f"{manuscript_name}_page{page}_graph_updated.pt"
+        full_file_path = os.path.join(GRAPH_FILEPATH, graph_file_name)
+        # Check if the file exists
+        if os.path.exists(full_file_path):
+            print(f"File exists: {full_file_path}")
+            graph_data = load_graph_for_gnn(
+                manuscript_name=manuscript_name,
+                page_number=page,
+                input_dir=GRAPH_FILEPATH,
+                update=True #we are load previously updated graph
+            )
+            print("Loaded graph:", graph_data)
+        else:
+            print(f"File not found: {full_file_path}, GENERATING NEW GRAPH")
+            graph_data = generate_layout_graph(points)
+            save_graph_for_gnn(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
 
         response["points"] = points
         response["graph"] = graph_data

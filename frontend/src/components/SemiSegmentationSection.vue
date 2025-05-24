@@ -91,8 +91,8 @@
             :cx="scaleX(node.x)"
             :cy="scaleY(node.y)"
             :r="isNodeSelected(index) ? 6 : 3"
-            :fill="isNodeSelected(index) ? '#ff9500' : '#2ecc71'"
-            :fill-opacity="0.8"
+            :fill="isNodeSelected(index) ? '#ff9500' : '#f44336'"
+            :fill-opacity="0.7"
             @click="editMode && onNodeClick(index, $event)"
           />
           
@@ -170,7 +170,7 @@ const points = ref([]);
 const graph = ref({ nodes: [], edges: [] });
 const imageData = ref('');
 const imageLoaded = ref(false);
-const showPoints = ref(true);
+const showPoints = ref(false);
 const showGraph = ref(true);
 
 // Editing state
@@ -181,7 +181,7 @@ const modifications = ref([]);
 const workingGraph = reactive({ nodes: [], edges: [] });
 
 // Scale factor (similar to the Python code's resize)
-const scaleFactor = 0.5; // This is equivalent to dividing by 2 as in your Python code
+const scaleFactor = 0.7; // This is equivalent to dividing by 2 as in your Python code
 
 // Calculate scaled dimensions
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor));
@@ -409,9 +409,9 @@ const isEdgeSelected = (edge) => {
 
 const getEdgeColor = (edge) => {
   // Modified edges get a different color
-  if (edge.modified) return '#ff9500';
+  if (edge.modified) return '#f44336';
   // Original edge coloring logic
-  return edge.label === 0 ? '#3498db' : '#e74c3c';
+  return edge.label === 0 ? '#ffffff' : '#e74c3c';
 };
 
 const nextPage = async () => { // Make it async if saveModifications is async
