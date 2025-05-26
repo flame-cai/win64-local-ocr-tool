@@ -8,7 +8,7 @@ import gc
 
 from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
-from annotator.segmentation.segment_graph import generate_layout_graph, save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
+from annotator.segmentation.segment_graph import save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
 
 from annotator.recognition.recognition import recognise_characters
 from annotator.finetune.finetune import finetune
@@ -265,7 +265,7 @@ def make_semi_segments(manuscript_name, page):
 def get_points_and_graph(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     try:
-        print("Getting points and generating graph")
+        print("Getting points and checking for existing graph")
         filepath_jpg = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
         filepath_tif = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.tif")
         filepath_png = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.png")
@@ -321,33 +321,59 @@ def get_points_and_graph(manuscript_name, page):
         # Convert to numeric values
         points = [[float(coord) for coord in point] for point in points_raw]
 
+        # Always include points in response
+        response["points"] = points
 
         # Build the expected file name (if old graph exists)
         graph_file_name = f"{manuscript_name}_page{page}_graph_updated.pt"
         full_file_path = os.path.join(GRAPH_FILEPATH, graph_file_name)
-        # Check if the file exists
+        
+        # Check if the file exists and load it
         if os.path.exists(full_file_path):
             print(f"File exists: {full_file_path}")
             graph_data = load_graph_for_gnn(
                 manuscript_name=manuscript_name,
                 page_number=page,
                 input_dir=GRAPH_FILEPATH,
-                update=True #we are load previously updated graph
+                update=True  # we are loading previously updated graph
             )
-            print("Loaded graph:", graph_data)
+            print("Loaded existing graph")
+            response["graph"] = graph_data
         else:
-            print(f"File not found: {full_file_path}, GENERATING NEW GRAPH")
-            graph_data = generate_layout_graph(points)
-            save_graph_for_gnn(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
-
-        response["points"] = points
-        response["graph"] = graph_data
+            print(f"File not found: {full_file_path}, graph will be generated in frontend")
+            # Don't include graph in response - frontend will generate it
+            # response["graph"] will be None/undefined
         
         return response, 200
     except Exception as e:
         print(f"Error: {str(e)}")
         return {"error": str(e)}, 500
 
+
+# Optional: Add endpoint to save graphs generated in frontend
+@bp.route("/save-graph/<manuscript_name>/<page>", methods=["POST"])
+def save_graph(manuscript_name, page):
+    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
+    try:
+        data = request.get_json()
+        graph_data = data.get('graph')
+        
+        if not graph_data:
+            return {"error": "No graph data provided"}, 400
+        
+        GRAPH_FILEPATH = os.path.join(
+            MANUSCRIPTS_PATH, manuscript_name, "points-2D"
+        )
+        
+        # Save the graph using existing save function
+        save_graph_for_gnn(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
+        
+        print(f"Graph saved for {manuscript_name}, page {page}")
+        return {"success": True}, 200
+        
+    except Exception as e:
+        print(f"Error saving graph: {str(e)}")
+        return {"error": str(e)}, 500
 
 
 # Example usage in a Flask/FastAPI endpoint:

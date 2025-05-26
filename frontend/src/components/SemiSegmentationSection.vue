@@ -148,6 +148,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, reactive } from 'vue';
 import { useAnnotationStore } from '@/stores/annotationStore';
+import { generateLayoutGraph } from './typing-utils/LayoutGraphGenerator.js';  // Import the new utility function
 
 const handleKeydown = (e) => {
   if (!editMode.value) return;
@@ -198,6 +199,36 @@ const updateCanvasSize = (width, height) => {
   dimensions.value = [width, height];
 };
 
+// Function to save generated graph back to backend
+const saveGeneratedGraph = async (manuscriptName, page, graphData) => {
+  try {
+    console.log(`Saving graph for ${manuscriptName}, page ${page}`);
+    const response = await fetch(
+      import.meta.env.VITE_BACKEND_URL + `/save-graph/${manuscriptName}/${page}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ graph: graphData })
+      }
+    );
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save graph');
+    }
+    
+    const result = await response.json();
+    console.log('Graph saved to backend successfully:', result);
+    return result;
+  } catch (error) {
+    console.error('Error saving graph to backend:', error);
+    // Non-critical error, don't throw to avoid breaking the main flow
+    return null;
+  }
+};
+
 const fetchPageData = async () => {
   if (!manuscriptName.value || !currentPage.value) return;
   
@@ -233,10 +264,36 @@ const fetchPageData = async () => {
     
     // Process graph
     if (data.graph) {
+      // Graph was loaded from existing file on backend
       graph.value = data.graph;
-      // Clone to working graph
-      resetWorkingGraph();
+      console.log("Using existing graph from backend");
+    } else if (data.points && data.points.length > 0) {
+      // No existing graph found, generate new one in frontend
+      console.log("Generating new graph in frontend");
+      try {
+        const generatedGraph = generateLayoutGraph(data.points);
+        graph.value = generatedGraph;
+        console.log("Successfully generated graph:", generatedGraph);
+        
+        // Save the generated graph back to the backend
+        console.log("Attempting to save generated graph...");
+        const saveResult = await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);
+        
+        if (saveResult) {
+          console.log("Graph saved successfully");
+        } else {
+          console.log("Graph generation successful but saving failed (non-critical)");
+        }
+        
+      } catch (graphError) {
+        console.error('Error generating graph:', graphError);
+        // Fallback to empty graph if generation fails
+        graph.value = { nodes: [], edges: [] };
+      }
     }
+    
+    // Clone to working graph
+    resetWorkingGraph();
     
     // Process image
     if (data.image) {
