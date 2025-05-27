@@ -148,7 +148,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, reactive } from 'vue';
 import { useAnnotationStore } from '@/stores/annotationStore';
-import { generateLayoutGraph } from './typing-utils/LayoutGraphGenerator.js';  // Import the new utility function
+import { generateLayoutGraph } from './layout-analysis-utils/LayoutGraphGenerator.js';  // Import the new utility function
 
 const handleKeydown = (e) => {
   if (!editMode.value) return;

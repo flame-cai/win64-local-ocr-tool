@@ -2,10 +2,12 @@ import os
 import numpy as np
 import cv2
 from scipy.signal import find_peaks
+from skimage import io
+import glob # For easily finding all .png files in a directory
+
 from annotator.segmentation.utils import load_images_from_folder
 
 
-#%%
 def gen_bounding_boxes(det,peaks, lineheight_baseline_percentile, binarize_threshold):
   img = np.uint8(det * 255)
   _, img1 = cv2.threshold(img, binarize_threshold, 255, cv2.THRESH_BINARY)
@@ -143,23 +145,69 @@ def gen_line_images(img2,peaks,bounding_boxes,lines, lineheight_baseline_percent
   return line_images
 
 
+
+def load_saved_heatmaps_jpg(heatmap_folder_path):
+    """
+    Loads heatmaps that were saved as .jpg files by multiplying by 255
+    and using cv2.imwrite.
+
+    Args:
+        heatmap_folder_path (str): The path to the folder where .jpg heatmaps are stored.
+                                   e.g., "instance/manuscripts/your_m_name/heatmaps"
+
+    Returns:
+        tuple: (loaded_heatmaps, heatmap_filenames)
+            - loaded_heatmaps (list): A list of NumPy arrays, each representing a heatmap
+                                      with float values in the range [0, 1].
+            - heatmap_filenames (list): A list of corresponding filenames (e.g., "image1.jpg").
+    """
+    if not os.path.isdir(heatmap_folder_path):
+        print(f"Error: Heatmap folder not found at {heatmap_folder_path}")
+        return [], []
+
+    loaded_heatmaps = []
+    heatmap_filenames = []
+
+    # Find all .jpg files in the specified folder
+    # Sort them to ensure a consistent order if that matters for your application
+    jpg_files = sorted(glob.glob(os.path.join(heatmap_folder_path, "*.jpg"))) # Changed to *.jpg
+
+    if not jpg_files:
+        print(f"No .jpg files found in {heatmap_folder_path}") # Updated message
+        return [], []
+
+    print(f"Found {len(jpg_files)} heatmap .jpg files to load.")
+
+    for file_path in jpg_files:
+        # Load the image in grayscale mode
+        # cv2.imread by default loads in BGR. For single channel (grayscale) like heatmaps:
+        img_uint8 = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+
+        if img_uint8 is None:
+            print(f"Warning: Could not load image {file_path}. Skipping.")
+            continue
+
+        # Convert to float and scale back to [0, 1] range
+        # The original data was likely float before being multiplied by 255 and saved as uint8
+        heatmap_float = img_uint8.astype(np.float32) / 255.0
+
+        loaded_heatmaps.append(heatmap_float)
+        heatmap_filenames.append(os.path.basename(file_path))
+
+    return loaded_heatmaps, heatmap_filenames
+
+
 def segment_lines(folder_path, lineheight_baseline_percentile=80, binarize_threshold=100):
     print(folder_path)
+    #m_name = folder_path.split('/')[-2]
     m_name = os.path.basename(os.path.dirname(folder_path))
 
-    inp_images, file_names = load_images_from_folder(folder_path)
-    print("Current Working Directory:", os.getcwd())
 
-    out_images = []
-    for _filename in file_names:
-        path = f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.png')}"
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)  # use IMREAD_UNCHANGED to preserve original type
-        if img is not None:
-            out_images.append(img)
-        else:
-            print(f"Warning: Could not load image at {path}")
-        
-    print("running old segmentation algorithm")
+
+    # LOAD HEATMAP
+    inp_images, file_names = load_images_from_folder(folder_path)
+    out_images,_ = load_saved_heatmaps_jpg(f'instance/manuscripts/{m_name}/heatmaps')
+
 
     # ALGORITHM
     for det,image,file_name in zip(out_images,inp_images,file_names):
