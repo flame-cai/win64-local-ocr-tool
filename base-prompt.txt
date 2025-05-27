@@ -1,0 +1,12 @@
+This is a project wih the goal to segment text line images from historical manuscripts. As historical manuscripts have curved text lines, footnates, notes and diverse layouts this is a difficult problem.
+In this code, we treat each character on the manuscript page as a 2D point, with the goal to connect all characters (points) of a same line together.
+In other words, each character must have atmost two connections (edges) - one to the previous character in the line, and one to the next character in the line.
+We also assume that these two connections have to be in opposite directions (We select pairs with angles close to 180 degrees) 
+Finally we cluster using DBSCAN to remove outliers. 
+
+Now, the problem arises when there is text present with a different orientation than the main text. This causes all connections of this text to be detected as outlier.
+We do not want this, but also want the "real outliers" to be detected as outliers. The real outlier are those, when the handwritten characters of adjacent lines a bit too close, cause a character to connect to the lines above and below it, instead of to the previous and next character (because we select the pair with the shortest length)
+But on average, for each text block, of any orientation, most edges are connected correctly.
+
+Hence I want you to modify the code, to implement some sort of local majority amplifier, where if the angle an edges makes with the x-axis, is different than the angles made by the edges in the vicinity, that edge is removed as outlier.
+This will also hopefully fix the text block orientation problem, as all edges in the vicinity will have same angle with x-axis (on average). This should help us remove the real outliers. 
