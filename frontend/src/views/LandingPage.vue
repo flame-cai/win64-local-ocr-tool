@@ -21,6 +21,11 @@ annotationStore.reset()
         <RouterLink :to="{ name: 'uploaded-manuscripts' }" class="btn btn-primary m-2"
           >Uploaded Manuscripts</RouterLink
         >
+
+        <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2"
+          >new-manuscript</RouterLink
+        >
+
       </div>
     </main>
   </div>

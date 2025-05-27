@@ -84,6 +84,36 @@ def serve_line_image(manuscript_name, page, line):
     return send_file(absolute_path, mimetype='image/jpeg')
 
 
+@bp.route("/new-process-manuscript", methods=["POST"])
+def new_process_manuscript():
+    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
+    uploaded_files = request.files
+    manuscript_name = request.form["manuscript_name"]
+    model = request.form["model"]
+    folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
+    leaves_folder_path = os.path.join(folder_path, "leaves")
+
+    try:
+        os.makedirs(leaves_folder_path, exist_ok=True)
+    except Exception as e:
+        print(f"An error occured: {e}")
+
+    for file in request.files:
+        filename = request.files[file].filename
+        request.files[file].save(os.path.join(leaves_folder_path, filename))
+
+    print("image2heatmap2points")
+    images2points(os.path.join(folder_path, "leaves"))
+    print("NEW PROCESS MANUSCRIPT now segmenting lines the old way")
+    segment_lines(os.path.join(folder_path, "leaves"))
+    lines = recognise_characters(folder_path, model, manuscript_name)
+    torch.cuda.empty_cache()
+    gc.collect()
+    # find_gpu_tensors()
+
+    return lines, 200
+
+
 @bp.route("/upload-manuscript", methods=["POST"])
 def annotate():
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')

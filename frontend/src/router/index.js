@@ -36,11 +36,36 @@ const router = createRouter({
         },
       ],
     },
+
+
+    {
+      path: '/new',
+      name: 'new-annotation-view',
+      component: () => import('../views/new-AnnotationView.vue'),
+      children: [
+        {
+          path: '/new/upload',
+          name: 'new-manuscript',
+          component: () => import('../components/new-UploadForm.vue'),
+        },
+        {
+          path: '/new/layout-analysis',
+          name: 'layout-analysis',
+          component: () => import('../components/new-LayoutAnalysis.vue'),
+        }
+      ],
+    },
+
+    
     {
       path: '/uploads',
       name: 'uploaded-manuscripts',
       component: () => import('../views/UploadedManuscriptsView.vue'),
     },
+
+
+
+
   ],
 })
 
