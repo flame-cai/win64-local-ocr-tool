@@ -256,6 +256,8 @@ const fetchPageData = async () => {
     const response = await fetch(
       import.meta.env.VITE_BACKEND_URL + `/semi-segment/${manuscriptName.value}/${currentPage.value}`
     );
+
+
     
     if (!response.ok) {
       const errorData = await response.json();
@@ -585,10 +587,14 @@ const saveModifications = async () => {
     
     // Prepare the request with the modified graph data
     const request = {
-      graph: workingGraph,
-      modifications: modifications.value,
-      points: points.value.map(point => point.segment)
-    };
+          graph: workingGraph,
+          modifications: modifications.value,
+          points: points.value.map(point => point.segment),
+          modelName: annotationStore.modelName // <<< ADD THIS LINE
+        };
+
+    console.log('About to send POST to /semi-segment. annotationStore.modelName:', annotationStore.modelName); // DEBUG LINE
+
     
     const response = await fetch(
       import.meta.env.VITE_BACKEND_URL + 
@@ -602,15 +608,43 @@ const saveModifications = async () => {
       }
     );
     
+// In Page C (new-SemiSegmentationSection.vue) - saveModifications
+// ... (fetch call) ...
+
     if (!response.ok) {
-      throw new Error('Failed to save modifications and generate labels');
+      const errorData = await response.json().catch(() => ({ error: "Failed to parse error response from backend" }));
+      console.error('Backend error response during save/recognition:', errorData); // Log backend error
+      throw new Error(errorData.error || 'Failed to save modifications and generate labels');
     }
-    
-    // Update the original graph with the working graph
+
+    const responseData = await response.json(); // Assuming backend sends JSON on success too
+    console.log('Page C: Save and recognition RESPONSE DATA:', responseData); // <<< CRITICAL LOG 1
+
+    // Update the original graph state in this component
     graph.value = JSON.parse(JSON.stringify(workingGraph));
     modifications.value = [];
-    
-    console.log('Graph modifications saved and labels generated successfully');
+
+    // **** PROCESS RECOGNIZED LINES AND UPDATE STORE ****
+    if (responseData.lines) { // <<< IS THIS CONDITION MET?
+      console.log('Page C: responseData.lines IS PRESENT. Lines:', responseData.lines); // <<< CRITICAL LOG 2
+      if (!annotationStore.recognitions[manuscriptName.value]) {
+        // This case should be rare if Page A initializes it
+        console.warn('Page C: Initializing manuscript in recognitions:', manuscriptName.value);
+        annotationStore.recognitions[manuscriptName.value] = {};
+      }
+      // This replaces the (likely empty) page entry with detailed line data
+      annotationStore.recognitions[manuscriptName.value][currentPage.value] = responseData.lines;
+      console.log(`Page C: Line data updated in store for manuscript '${manuscriptName.value}', page '${currentPage.value}'. New page data:`, JSON.parse(JSON.stringify(annotationStore.recognitions[manuscriptName.value][currentPage.value]))); // <<< CRITICAL LOG 3
+    } else {
+      console.warn('Page C: NO responseData.lines received in response from /semi-segment POST.'); // <<< CRITICAL LOG 4
+      // Initialize page data if it wasn't there, though it should be from Page A upload
+      if (annotationStore.recognitions[manuscriptName.value] && !annotationStore.recognitions[manuscriptName.value][currentPage.value]) {
+         console.warn('Page C: Initializing empty page data in store because responseData.lines was missing.');
+         annotationStore.recognitions[manuscriptName.value][currentPage.value] = {};
+      }
+    }
+    error.value = null;
+    console.log('Page C: Graph modifications saved and page recognized successfully (or lines processing attempted).');
   } catch (err) {
     console.error('Error saving modifications:', err);
     error.value = err.message || 'Failed to save modifications';

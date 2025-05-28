@@ -1,6 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
-import AnnotationPage from '@/components/AnnotationPage.vue'
+import AnnotationPage from '@/components/new-AnnotationPage.vue'
 import { useAnnotationStore } from '@/stores/annotationStore'
 import CharacterPalette from './characterPalette.vue'
 
@@ -9,6 +9,8 @@ const annotationStore = useAnnotationStore();
 
 const manuscript_name = Object.keys(annotationStore.recognitions)[0];
 const manuscriptPages = Object.keys(annotationStore.recognitions[manuscript_name] || {}); // Ensure manuscript_name exists
+console.log('ff',manuscript_name)
+console.log('ff',manuscriptPages)
 
 if (manuscript_name && annotationStore.currentPage && manuscriptPages.includes(annotationStore.currentPage)) {
   // If currentPage in store is valid for the current manuscript, use it.
@@ -45,7 +47,7 @@ function switchToSegmentation() {
 }
 
 function switchToSemiAutoSegmentation() {
-  router.push({ name: 'new-semi-segment' }) // TODO we want to go directly here, with the manuscript name, and current page
+  router.push({ name: 'new-semi-segment' }) // 
 }
 
 </script>

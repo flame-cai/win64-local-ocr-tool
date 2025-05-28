@@ -339,6 +339,11 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_points.txt")
     LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_labels.txt")
+
+    if os.path.exists(os.path.join(BASE_PATH, manuscript_name, "lines", page)) == False:
+        os.makedirs(os.path.join(BASE_PATH, manuscript_name, "lines", page))
+        print("making the lines directory")
+
     LINES_DIR = os.path.join(BASE_PATH, manuscript_name, "lines", page)
 
     binarize_threshold = 100

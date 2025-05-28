@@ -10,7 +10,7 @@ from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
 from annotator.segmentation.segment_graph import save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
 
-from annotator.recognition.recognition import recognise_characters
+from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
 from annotator.finetune.finetune import finetune
 
 
@@ -24,6 +24,7 @@ import io
 import base64
 
 
+from flask import Response
 
 import numpy as np
 import torch
@@ -230,14 +231,18 @@ def new_process_manuscript():
 
     print("image2heatmap2points")
     images2points(os.path.join(folder_path, "leaves"))
-    print("NEW PROCESS MANUSCRIPT now segmenting lines the old way")
-    segment_lines(os.path.join(folder_path, "leaves"))
-    lines = recognise_characters(folder_path, model, manuscript_name)
+    print("NEW PROCESS MANUSCRIPT")
+    # TODO SHIFT THIS    
+    # lines = recognise_characters(folder_path, model, manuscript_name)
     torch.cuda.empty_cache()
     gc.collect()
     # find_gpu_tensors()
 
-    return lines, 200
+    return Response(json.dumps({"message": "Files uploaded and points processing initiated."}), status=200, mimetype='application/json')
+
+
+
+
 
 @bp.route("/semi-segment/<string:manuscript_name>/<string:page>", methods=["POST"])
 def make_semi_segments(manuscript_name, page):
@@ -253,6 +258,10 @@ def make_semi_segments(manuscript_name, page):
         
         # Parse request data
         request_data = request.json
+        model_name_from_request = request_data.get("modelName")
+        if not model_name_from_request:
+            current_app.logger.error("Model name not provided in POST /semi-segment request.")
+            return Response(json.dumps({"error": "Model name not provided"}), status=400, mimetype='application/json')
 
         # Extract graph data if available
         if 'graph' in request_data:
@@ -283,13 +292,31 @@ def make_semi_segments(manuscript_name, page):
 
         # Run manual segmentation after saving labels
         segmentLinesFromPointClusters(manuscript_name, page)
+        current_app.logger.info(f"Segmentation complete for {manuscript_name}/{page}.")
+
+        # NOW, PERFORM CHARACTER RECOGNITION FOR THIS PAGE
+        current_app.logger.info(f"Starting character recognition for {manuscript_name}/{page} with model {model_name_from_request}.")
+        manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
         
-        return {"message": f"Graph and segmentation data saved for {manuscript_name} page {page}"}, 200
+        recognized_line_data = recognise_single_page_characters(
+            manuscript_folder_path, model_name_from_request, manuscript_name, page
+        )
+        current_app.logger.info(f"Character recognition finished for {manuscript_name}/{page}.")
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+
+        return Response(json.dumps({
+            "message": f"Segmentation saved and page recognized for {manuscript_name} page {page}",
+            "lines": recognized_line_data # Return the recognized lines for the current page
+        }), status=200, mimetype='application/json')
 
     except Exception as e:
-        print(str(e))
-        return {"error": str(e)}, 500
-
+        current_app.logger.error(f"Error in POST /semi-segment: {str(e)}")
+        # import traceback
+        # traceback.print_exc() # For more detailed server logs during dev
+        return Response(json.dumps({"error": str(e)}), status=500, mimetype='application/json')
 
 
 
@@ -301,7 +328,9 @@ def get_points_and_graph(manuscript_name, page):
         filepath_jpg = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
         filepath_tif = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.tif")
         filepath_png = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.png")
-
+        print("yooooooooooo")
+        print(MANUSCRIPTS_PATH)
+        print(filepath_jpg)
         # Check which file exists
         if os.path.exists(filepath_jpg):
             IMAGE_FILEPATH = filepath_jpg
@@ -380,6 +409,13 @@ def get_points_and_graph(manuscript_name, page):
     except Exception as e:
         print(f"Error: {str(e)}")
         return {"error": str(e)}, 500
+
+
+
+
+
+
+
 
 
 # Optional: Add endpoint to save graphs generated in frontend
