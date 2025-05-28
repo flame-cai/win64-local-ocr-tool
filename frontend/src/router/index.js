@@ -49,9 +49,14 @@ const router = createRouter({
           component: () => import('../components/new-UploadForm.vue'),
         },
         {
-          path: '/new/layout-analysis',
-          name: 'layout-analysis',
-          component: () => import('../components/new-LayoutAnalysis.vue'),
+          path: '/new/img-2-txt',                
+          name: 'img-2-txt',                      // instead of this
+          component: () => import('../components/new-IMG2TXT.vue'),
+        },
+        {
+          path: '/new/semi-segment',             
+          name: 'new-semi-segment',               // go here
+          component: () => import('../components/new-SemiSegmentationSection.vue'),
         }
       ],
     },

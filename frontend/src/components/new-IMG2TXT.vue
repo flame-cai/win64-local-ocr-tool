@@ -5,31 +5,22 @@ import { useAnnotationStore } from '@/stores/annotationStore'
 import CharacterPalette from './characterPalette.vue'
 
 const router = useRouter()
-
-
 const annotationStore = useAnnotationStore();
-// CRITICAL POINT: These lines can fail if annotationStore.recognitions is empty or not structured as expected
-// after the upload and before this component loads.
-
-// Add checks:
-if (!annotationStore.recognitions || Object.keys(annotationStore.recognitions).length === 0) {
-  console.error("new-LayoutAnalysis: annotationStore.recognitions is empty or not an object!");
-  // Handle this case: maybe redirect back, show an error message, or set default values.
-  // For now, this will at least tell you if this is the problem.
-  // You might want to prevent further execution or provide fallback data.
-  // router.push({ name: 'new-manuscript' }); // Example: redirect back
-  // return; // Stop further setup if critical data is missing
-}
 
 const manuscript_name = Object.keys(annotationStore.recognitions)[0];
-if (!manuscript_name || !annotationStore.recognitions[manuscript_name] || Object.keys(annotationStore.recognitions[manuscript_name]).length === 0) {
-  console.error(`new-LayoutAnalysis: No pages found for manuscript "${manuscript_name}" or manuscript itself is problematic.`);
-  // Handle this case as well.
-  // router.push({ name: 'new-manuscript' }); // Example
-  // return;
-}
+const manuscriptPages = Object.keys(annotationStore.recognitions[manuscript_name] || {}); // Ensure manuscript_name exists
 
-annotationStore.currentPage = Object.keys(annotationStore.recognitions[manuscript_name])[0];
+if (manuscript_name && annotationStore.currentPage && manuscriptPages.includes(annotationStore.currentPage)) {
+  // If currentPage in store is valid for the current manuscript, use it.
+  // No change needed to annotationStore.currentPage here, it's already correct.
+} else if (manuscript_name && manuscriptPages.length > 0) {
+  // Otherwise, default to the first page of the current manuscript
+  annotationStore.currentPage = manuscriptPages[0];
+} else {
+  // Handle case where there are no pages or no manuscript
+  annotationStore.currentPage = null;
+  console.warn('No pages found for manuscript or manuscript_name is missing in new-IMG2TXT.vue');
+}
 
 function uploadGroundTruth() {
   annotationStore.calculateLevenshteinDistances()
@@ -54,7 +45,7 @@ function switchToSegmentation() {
 }
 
 function switchToSemiAutoSegmentation() {
-  router.push({ name: 'semi-segment' })
+  router.push({ name: 'new-semi-segment' }) // TODO we want to go directly here, with the manuscript name, and current page
 }
 
 </script>
@@ -71,7 +62,7 @@ function switchToSemiAutoSegmentation() {
   <div class="mb-3">
     <button class="btn btn-primary me-2" @click="uploadGroundTruth">Fine-tune</button>
     <button class="btn btn-warning me-2" @click="switchToSegmentation">Correct Image Segments</button>
-    <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Test Segmentation</button>
+    <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Semi Segmentation</button>
     <button class="btn btn-success me-2" @click="annotationStore.exportToTxt">Export</button>
     <CharacterPalette />
   </div>

@@ -50,7 +50,18 @@ onMounted(() => {
       annotations: {},
     })
 
-    router.push({ name: 'layout-analysis' })
+    // ADD THIS BLOCK:
+    const pageKeys = Object.keys(response); // Get page names from the response
+    if (pageKeys.length > 0) {
+      annotationStore.currentPage = pageKeys[0];
+    } else {
+      // If there are no pages, set currentPage to null or handle appropriately
+      annotationStore.currentPage = null; 
+      console.error('No pages found for manuscript:', manuscript_name, '. currentPage is not set.');
+    }
+    // End of ADD THIS BLOCK
+
+    router.push({ name: 'new-semi-segment' }) 
   })
 })
 
