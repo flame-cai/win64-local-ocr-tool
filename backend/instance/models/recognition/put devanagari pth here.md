@@ -1,1 +1,1 @@
-Download devanagari.pth from (here)[https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip]
+Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip)
