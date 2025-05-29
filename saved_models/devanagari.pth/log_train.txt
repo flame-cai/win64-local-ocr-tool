@@ -1,3 +1,6 @@
 [5/5] Train loss: 11.68007, Valid loss: 5.23917, Elapsed_time: 3.39648
 Current_accuracy : 0.000, Current_norm_ED  : 0.0784
 Best_accuracy    : 0.000, Best_norm_ED     : 0.0784
+[5/5] Train loss: 14.09294, Valid loss: 13.40179, Elapsed_time: 2.50446
+Current_accuracy : 0.000, Current_norm_ED  : 0.1961
+Best_accuracy    : 0.000, Best_norm_ED     : 0.1961

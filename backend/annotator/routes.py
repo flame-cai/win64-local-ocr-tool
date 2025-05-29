@@ -9,27 +9,20 @@ import gc
 from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
 from annotator.segmentation.segment_graph import save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
-
 from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
 from annotator.finetune.finetune import finetune
 
 
 #importing GNN libraries
-import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-
 import io
 import base64
-
-
 from flask import Response
-
-import numpy as np
-import torch
 import json
-import os
+
 
 
 bp = Blueprint("main", __name__)
