@@ -32,6 +32,8 @@ flask run --debug
 
 ### To run the frontend
 
+0. Install node.js
+
 1. cd into `frontend`
 
 2. Install the node packages using
@@ -44,3 +46,9 @@ npm install
 ```
 npm run dev
 ```
+
+
+## TODO
+- finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
+- integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
+ 
