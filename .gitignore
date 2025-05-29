@@ -4,13 +4,8 @@ backend/temp
 backend/saved_models
 backend/.env
 deede
-temp
-saved_models
+
 test.py
-
-
-
-saved_models
 craft_mlt_25k.pth
 devanagari.pth
 project.db
