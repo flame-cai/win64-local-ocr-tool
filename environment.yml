@@ -1,7 +1,8 @@
-name: layout-analysis
+name: san-ocr-tool
 channels:
   - defaults
 dependencies:
+  - python=3.11
   - defaults/win-64::blas==1.0=mkl
   - ca-certificates==2025.2.25
   - nvidia/label/cuda-12.1.1/win-64::cuda-cccl==12.1.109=0
