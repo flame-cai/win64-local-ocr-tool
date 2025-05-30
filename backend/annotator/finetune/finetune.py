@@ -41,7 +41,7 @@ def finetune(data):
     model_name = data[0].get("model_name", f"{manuscript_name}.pth")
 
     opt = get_config(
-        os.path.join("backend","annotator", "finetune", "config_files", "config.yml"),
+        os.path.join("annotator", "finetune", "config_files", "config.yml"),
         manuscript_name,
         selected_model,
         model_name,

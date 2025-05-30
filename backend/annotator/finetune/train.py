@@ -242,10 +242,10 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
                 # keep best accuracy model (on valid dataset)
                 if current_accuracy > best_accuracy:
                     best_accuracy = current_accuracy
-                    torch.save(model.state_dict(), f'instance/models/recognition/{opt.model_name}_best_accuracy.pth')
+                    torch.save(model.state_dict(), f'instance/models/recognition/{opt.model_name}_{manuscript_name}_best_accuracy.pth')
                 if current_norm_ED > best_norm_ED:
                     best_norm_ED = current_norm_ED
-                    torch.save(model.state_dict(), f'instance/models/recognition/{opt.model_name}_best_norm_ED.pth')
+                    torch.save(model.state_dict(), f'instance/models/recognition/{opt.model_name}_{manuscript_name}_best_norm_ED.pth')
                 best_model_log = f'{"Best_accuracy":17s}: {best_accuracy:0.3f}, {"Best_norm_ED":17s}: {best_norm_ED:0.4f}'
 
                 loss_model_log = f'{loss_log}\n{current_model_log}\n{best_model_log}'
