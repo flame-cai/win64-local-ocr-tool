@@ -1,8 +1,18 @@
-# manuscript-annotation-tool
+# OCR Tool for Historical Devanagari Manuscripts
+[Kartik Chincholikar <sup>*</sup>](https://kartikchincholikar.github.io/), [Shagun Dwivedi <sup>*†</sup>](https://shagundwivedi.github.io/), [Bharath Valaboju](https://Bharath314.github.io/)
+<!-- **[Paper](https://arxiv.org/abs/2502.12534), [Project Page](https://theialab.github.io/noksr/)** -->
+<!-- ![noksr](assets/Teaser.png) -->
 
-## Envitonment Setup
-The code is tested on Windows 11 (x64), PyTorch 2.4.1, with CUDA 12.8 Driver, and cuda-12.1.1 Runtime, with Python 3.11. Please follow the following steps to install:
-```
+Abstract: Digitizing text from historical manuscripts yields historians multiple benefits. Segmenting text-line images from pages with diverse layouts is a necessary intermediary task when digitising text from historical handwritten Sanskrit manuscripts. In this paper, we propose representing text-lines as graphs, with characters as the nodes, and with edges connecting characters to their previous and next characters on that text-line. We use this graph-based representation to annotate data and evaluate text-line segmentation predictions, using nodes and edges as units of comparison instead of pixel-level metrics. We highlight the advantages of this graph-based representation and propose a simple semi-automatic text-line segmentation method, which uses deep learning to locate the characters of the page, and then uses the aforementioned graph representation to devise a simple algorithm that connects characters of a text-line. We test this proposed algorithm on a set of 15 pages with layouts of varying complexity, ranging from simple single-column and double-column layouts to layouts with pictures, footnotes, marginalia, tables, and irregular font sizes. We find that the proposed algorithm performs reasonably well on metrics such as Adjusted Rand Index, V-measure and Graph Edit Distance.
+
+Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
+
+<!-- ## News    
+
+- [2025/05/30] Beta Version Updated -->
+
+## Environment Setup
+The code is tested on Windows 11 (x64) machine with NVIDIA GeForce RTX 4050 Laptop GPU with CUDA 12.8 Driver. We used Python 3.11 with cuda-12.1.1 Runtime. Please follow the following steps to create the conda environment:
 
 ```
 # Download/Clone this repository
@@ -19,7 +29,7 @@ The Devanagari pretrained model is then used to detect the text-content from the
 - Download craft_mlt_pth from [here](https://huggingface.co/amitesh863/craft/resolve/main/craft_mlt_25k.pth?download=true). 
 - Put this file in the `backend/instance/models/segmentation` folder.
 
-### To run the backend
+### Setup the backend
 ```
 # go to the backend folder
 cd backend
@@ -34,7 +44,7 @@ conda activate san-ocr-tool
 flask run --debug
 ```
 
-### To run the frontend
+### Setup the frontend
 ```
 # Install node.js
 
@@ -47,8 +57,6 @@ npm install
 # Run the development server using 
 npm run dev
 ```
-
-
 
 ## TODO
 - finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
