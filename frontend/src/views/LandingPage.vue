@@ -15,15 +15,15 @@ annotationStore.reset()
     </header>
     <main :class="landingPage.main">
       <div :class="landingPage.links">
+
+        <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2"
+          >New Manuscript</RouterLink
+        >
         <RouterLink :to="{ name: 'upload-manuscript' }" class="btn btn-primary m-2"
           >Annotate</RouterLink
         >
         <RouterLink :to="{ name: 'uploaded-manuscripts' }" class="btn btn-primary m-2"
           >Uploaded Manuscripts</RouterLink
-        >
-
-        <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2"
-          >new-manuscript</RouterLink
         >
 
       </div>

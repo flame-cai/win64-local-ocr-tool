@@ -38,27 +38,6 @@ def get_models():
     return os.listdir(os.path.join(current_app.config['DATA_PATH'], 'models', 'recognition'))
 
 
-# @bp.route("/line-images/<string:manuscript_name>/<string:page>/<string:line>")
-# def serve_line_image(manuscript_name, page, line):
-#     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-#     return send_from_directory(
-#         os.path.join(MANUSCRIPTS_PATH, manuscript_name, "lines", page), line + ".jpg"
-#     )
-
-# @bp.route("/line-images/<string:manuscript_name>/<string:page>/<string:line>")
-# def serve_line_image(manuscript_name, page, line):
-#     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-#     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "lines", page)
-#     file_name = line + ".jpg"  # or .jpg depending on what you have
-
-#     print("Looking for image at:", os.path.join(folder_path, file_name))
-
-#     if not os.path.exists(os.path.join(folder_path, file_name)):
-#         print("Not found!")
-#         abort(404)
-
-#     return send_from_directory(folder_path, file_name)
-
 @bp.route("/line-images/<manuscript_name>/<page>/<line>")
 def serve_line_image(manuscript_name, page, line):
     # Build the folder and filename exactly how you want them
@@ -436,10 +415,3 @@ def save_graph(manuscript_name, page):
         print(f"Error saving graph: {str(e)}")
         return {"error": str(e)}, 500
 
-
-# Example usage in a Flask/FastAPI endpoint:
-# @app.route('/save-gnn-graph/<manuscript_name>/<page_number>', methods=['POST'])
-# def save_gnn_graph_endpoint(manuscript_name, page_number):
-#     graph_data = request.json
-#     file_path = save_graph_for_gnn(graph_data, manuscript_name, page_number)
-#     return jsonify({'success': True, 'file_path': file_path})
