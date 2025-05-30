@@ -16,7 +16,7 @@ Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
 - [2025/05/30] Code Released!
 
 ## Environment Setup
-The code is tested on Windows 11 (x64) machine with NVIDIA GeForce RTX 4050 Laptop GPU with CUDA 12.8 Driver. We used Python 3.11 with cuda-12.1.1 Runtime. Please follow the following steps to create the conda environment:
+The code is tested on Windows 11 (x64) machine with NVIDIA GeForce RTX 4050 Laptop GPU with CUDA 12.8 Driver. 
 
 ```
 # Download/Clone this repository
@@ -28,12 +28,13 @@ cd win64-local-ocr-tool
 
 The application uses two AI model: [CRAFT](https://github.com/clovaai/CRAFT-pytorch) and [EasyOCR's](https://github.com/JaidedAI) Devanagari pretrained model. CRAFT detext the locations of the characters in a page, which is used to crop out text-line-images from pages with diverse layouts. The Devanagari pretrained model is then used to detect the text-content from the cropped text-line-images, and can also be fine-tuned for a specific manuscript. 
 
-- Download craft_mlt_25k.pth from [here](https://huggingface.co/amitesh863/craft/resolve/main/craft_mlt_25k.pth?download=true). Put this file in the `backend/instance/models/segmentation` folder.
+- Download craft_mlt_25k.pth from [here](https://huggingface.co/amitesh863/craft/resolve/main/craft_mlt_25k.pth?download=true). Put this file in the `backend/instance/models/segmentation/` folder. You will need to create this folder.
 
-- Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip). Put this file in the `backend/instance/models/recognition` folder.
+- Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip). Make sure to unzip the devanagari.zip file to get devanagari.pth file. Put this file in the `backend/instance/models/recognition/` folder. You will need to create this folder too.
 
 
 ### Setup the backend
+In the backend, we used a conda environment, with **Python 3.11.9** and **cuda-12.1.1 Runtime**. Please follow the following steps to create the conda environment:
 ```
 # go to the backend folder
 cd backend
@@ -49,9 +50,8 @@ flask run --debug
 ```
 
 ### Setup the frontend
+Install [Node.js](https://nodejs.org/en) if not installed.
 ```
-# Install node.js
-
 # open a new terminal, and go to frontend folder
 cd frontend
 
