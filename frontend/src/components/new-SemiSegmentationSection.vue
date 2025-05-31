@@ -8,16 +8,8 @@
         <button @click="goToIMG2TXTPage">Annotate Text</button>
         <div class="toggle-container">
           <label>
-            <input type="checkbox" v-model="showPoints" />
-            Show Points
-          </label>
-          <label>
-            <input type="checkbox" v-model="showGraph" />
-            Show Graph
-          </label>
-          <label>
             <input type="checkbox" v-model="editMode" />
-            Edit Mode!
+            Edit Mode
           </label>
         </div>
       </div>
@@ -33,7 +25,6 @@
 
     <div v-else class="visualization-container" ref="container">
       <div class="image-container" :style="{ width: `${scaledWidth}px`, height: `${scaledHeight}px` }">
-        <!-- Background image -->
         <img 
           v-if="imageData" 
           :src="`data:image/jpeg;base64,${imageData}`" 
@@ -46,9 +37,8 @@
           No image available
         </div>
         
-        <!-- Points overlay -->
         <div 
-          v-if="showPoints && points.length > 0" 
+          v-if="effectiveShowPoints && points.length > 0" 
           class="points-overlay"
         >
           <div 
@@ -63,15 +53,16 @@
           ></div>
         </div>
         
-        <!-- Graph overlay -->
         <svg 
-          v-if="showGraph && workingGraph.nodes && workingGraph.edges" 
+          v-if="effectiveShowGraph && workingGraph.nodes && workingGraph.nodes.length > 0" 
           class="graph-overlay"
           :width="scaledWidth"
           :height="scaledHeight"
           @click="editMode && onBackgroundClick"
+          @mousemove="handleSvgMouseMove"
+          @mouseleave="handleSvgMouseLeave"
+          ref="svgOverlayRef"
         >
-          <!-- Edges -->
           <line
             v-for="(edge, index) in workingGraph.edges"
             :key="`edge-${index}`"
@@ -82,24 +73,22 @@
             :stroke="getEdgeColor(edge)"
             :stroke-width="isEdgeSelected(edge) ? 3 : 1.5"
             :stroke-opacity="0.7"
-            @click="editMode && onEdgeClick(edge, $event)"
+            @click.stop="editMode && onEdgeClick(edge, $event)"
           />
           
-          <!-- Nodes -->
           <circle
-            v-for="(node, index) in workingGraph.nodes"
-            :key="`node-${index}`"
+            v-for="(node, nodeIndex) in workingGraph.nodes"
+            :key="`node-${nodeIndex}`"
             :cx="scaleX(node.x)"
             :cy="scaleY(node.y)"
-            :r="isNodeSelected(index) ? 6 : 3"
-            :fill="isNodeSelected(index) ? '#ff9500' : '#f44336'"
+            :r="getNodeRadius(nodeIndex)"
+            :fill="getNodeColor(nodeIndex)"
             :fill-opacity="0.7"
-            @click="editMode && onNodeClick(index, $event)"
+            @click.stop="editMode && onNodeClick(nodeIndex, $event)"
           />
           
-          <!-- Selection line (when one node is selected) -->
           <line
-            v-if="editMode && selectedNodes.length === 1 && tempEndPoint"
+            v-if="editMode && selectedNodes.length === 1 && tempEndPoint && !isAKeyPressed && !isDKeyPressed"
             :x1="scaleX(workingGraph.nodes[selectedNodes[0]].x)"
             :y1="scaleY(workingGraph.nodes[selectedNodes[0]].y)"
             :x2="tempEndPoint.x"
@@ -113,14 +102,14 @@
       </div>
     </div>
 
-    <div v-if="editMode" class="edit-controls">
+    <div v-if="editMode && !isAKeyPressed && !isDKeyPressed" class="edit-controls">
       <div class="edit-instructions">
-        <p v-if="selectedNodes.length === 0">Select first node to create/delete edge</p>
-        <p v-else-if="selectedNodes.length === 1">Select second node to create/delete edge</p>
-        <p v-else>Click "Add Edge" or "Delete Edge" below</p>
+        <p v-if="selectedNodes.length === 0">Click a node to select it. Hold 'A' and hover over nodes to connect them, or hold 'D' and hover over edges to delete them.</p>
+        <p v-else-if="selectedNodes.length === 1">Click a second node to select it for creating/deleting an edge, or click background/another node to change selection.</p>
+        <p v-else>Click "Add Edge" or "Delete Edge" below, or click background/another node to change selection.</p>
       </div>
       <div class="edit-actions">
-        <button @click="resetSelection">Cancel</button>
+        <button @click="resetSelection">Cancel Selection</button>
         <button 
           @click="addEdge" 
           :disabled="selectedNodes.length !== 2 || edgeExists(selectedNodes[0], selectedNodes[1])"
@@ -131,46 +120,39 @@
         >Delete Edge</button>
       </div>
     </div>
+     <div v-else-if="editMode && isAKeyPressed" class="edit-controls">
+      <p>Release 'A' to connect hovered nodes with a Minimum Spanning Tree.</p>
+    </div>
+    <div v-else-if="editMode && isDKeyPressed" class="edit-controls">
+      <p>Hover over edges to delete them. Release 'D' to stop.</p>
+    </div>
 
-    <div v-if="modifications.length > 0" class="modifications-log">
-        <h3>Modifications ({{ modifications.length }})</h3>
-        <button @click="saveModifications">Save Changes</button>
-        <button @click="resetModifications">Reset All</button>
-        <ul>
-          <li v-for="(mod, index) in modifications" :key="index" class="modification-item">
-            {{ mod.type === 'add' ? 'Added' : 'Removed' }} edge between Node {{ mod.source }} and Node {{ mod.target }}
-            <button @click="undoModification(index)" class="undo-button">Undo</button>
-          </li>
-        </ul>
-      </div>
+
+    <div v-if="editMode && graphIsLoaded" class="modifications-log-container">
+        <button @click="saveModifications" :disabled="loading">Save Graph</button>
+        <div v-if="modifications.length > 0" class="modifications-details">
+            <h3>Modifications ({{ modifications.length }})</h3>
+            <button @click="resetModifications" :disabled="loading">Reset All Changes</button>
+            <ul>
+              <li v-for="(mod, index) in modifications" :key="index" class="modification-item">
+                {{ mod.type === 'add' ? 'Added' : 'Removed' }} edge between Node {{ mod.source }} and Node {{ mod.target }}
+                <button @click="undoModification(index)" class="undo-button">Undo</button>
+              </li>
+            </ul>
+        </div>
+        <p v-else-if="!loading && workingGraph.nodes && workingGraph.nodes.length > 0">No modifications made in this session.</p>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, reactive } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
 import { useAnnotationStore } from '@/stores/annotationStore';
-import { generateLayoutGraph } from './layout-analysis-utils/LayoutGraphGenerator.js';  // Import the new utility function
-// Make sure useRouter is imported
-import { useRouter } from 'vue-router'; // Likely already there
+import { generateLayoutGraph } from './layout-analysis-utils/LayoutGraphGenerator.js';
+import { useRouter } from 'vue-router';
 
-const router = useRouter(); // Likely already there if you have nextPage/previousPage
-
-const goToIMG2TXTPage = () => {
-  // The annotationStore should already have the correct manuscript_name and currentPage
-  // as this component (Page C) is using them.
-  // Page B (new-IMG2TXT.vue) will pick these up from the store.
-  router.push({ name: 'img-2-txt' });
-};
-
-const handleKeydown = (e) => {
-  if (!editMode.value) return;
-  if (e.key === 'a') addEdge();
-  if (e.key === 'd') deleteEdge();
-};
-
-onMounted(() => window.addEventListener('keydown', handleKeydown));
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
-
+const router = useRouter();
 const annotationStore = useAnnotationStore();
 
 const manuscriptName = computed(() => Object.keys(annotationStore.recognitions)[0] || '');
@@ -183,139 +165,86 @@ const points = ref([]);
 const graph = ref({ nodes: [], edges: [] });
 const imageData = ref('');
 const imageLoaded = ref(false);
-const showPoints = ref(false);
-const showGraph = ref(true);
 
-// Editing state
-const editMode = ref(true);
+const editMode = ref(true); // Edit mode is ON by default
 const selectedNodes = ref([]);
 const tempEndPoint = ref(null);
 const modifications = ref([]);
 const workingGraph = reactive({ nodes: [], edges: [] });
 
-// Scale factor (similar to the Python code's resize)
-const scaleFactor = 0.7; // This is equivalent to dividing by 2 as in your Python code
-
-// Calculate scaled dimensions
+const scaleFactor = 0.8;
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor));
 const scaledHeight = computed(() => Math.floor(dimensions.value[1] * scaleFactor));
-
-// Scale functions to map original coordinates to scaled view
 const scaleX = (x) => x * scaleFactor;
 const scaleY = (y) => y * scaleFactor;
 
-// Container ref for potential scrolling/zooming features
 const container = ref(null);
+const svgOverlayRef = ref(null); // Ref for the SVG element
+
+// New state for hover interactions
+const isDKeyPressed = ref(false);
+const isAKeyPressed = ref(false);
+const hoveredNodesForMST = reactive(new Set());
+const NODE_HOVER_RADIUS = 5; // Pixels on scaled view for node proximity
+const EDGE_HOVER_THRESHOLD = 2; // Pixels on scaled view for edge proximity
+
+// Computed properties for UI elements linked to editMode
+const effectiveShowPoints = computed(() => editMode.value);
+const effectiveShowGraph = computed(() => editMode.value);
+const graphIsLoaded = computed(() => workingGraph.nodes && workingGraph.nodes.length > 0);
+
+const goToIMG2TXTPage = () => {
+  router.push({ name: 'img-2-txt' });
+};
 
 const updateCanvasSize = (width, height) => {
   dimensions.value = [width, height];
 };
 
-// Function to save generated graph back to backend
 const saveGeneratedGraph = async (manuscriptName, page, graphData) => {
   try {
-    console.log(`Saving graph for ${manuscriptName}, page ${page}`);
     const response = await fetch(
       import.meta.env.VITE_BACKEND_URL + `/save-graph/${manuscriptName}/${page}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ graph: graphData })
-      }
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph: graphData }) }
     );
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save graph');
-    }
-    
-    const result = await response.json();
-    console.log('Graph saved to backend successfully:', result);
-    return result;
+    if (!response.ok) throw new Error((await response.json()).error || 'Failed to save graph');
+    return await response.json();
   } catch (error) {
     console.error('Error saving graph to backend:', error);
-    // Non-critical error, don't throw to avoid breaking the main flow
     return null;
   }
 };
 
 const fetchPageData = async () => {
   if (!manuscriptName.value || !currentPage.value) return;
-  
   loading.value = true;
   error.value = null;
   points.value = [];
   graph.value = { nodes: [], edges: [] };
   imageData.value = '';
   imageLoaded.value = false;
+  modifications.value = []; // Clear modifications for new page
   
   try {
-    console.log(`Fetching data for manuscript: ${manuscriptName.value}, page: ${currentPage.value}`);
     const response = await fetch(
       import.meta.env.VITE_BACKEND_URL + `/semi-segment/${manuscriptName.value}/${currentPage.value}`
     );
-
-
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to fetch page data');
-    }
-    
+    if (!response.ok) throw new Error((await response.json()).error || 'Failed to fetch page data');
     const data = await response.json();
-    console.log("Received data:", Object.keys(data));
     
-    // Update canvas size
     updateCanvasSize(data.dimensions[0], data.dimensions[1]);
+    points.value = data.points.map(point => ({ coordinates: [point[0], point[1]], segment: null }));
     
-    // Process points
-    points.value = data.points.map(point => ({
-      coordinates: [point[0], point[1]],
-      segment: null,
-    }));
-    
-    // Process graph
     if (data.graph) {
-      // Graph was loaded from existing file on backend
       graph.value = data.graph;
-      console.log("Using existing graph from backend");
     } else if (data.points && data.points.length > 0) {
-      // No existing graph found, generate new one in frontend
-      console.log("Generating new graph in frontend");
-      try {
-        const generatedGraph = generateLayoutGraph(data.points);
-        graph.value = generatedGraph;
-        console.log("Successfully generated graph:", generatedGraph);
-        
-        // Save the generated graph back to the backend
-        console.log("Attempting to save generated graph...");
-        const saveResult = await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);
-        
-        if (saveResult) {
-          console.log("Graph saved successfully");
-        } else {
-          console.log("Graph generation successful but saving failed (non-critical)");
-        }
-        
-      } catch (graphError) {
-        console.error('Error generating graph:', graphError);
-        // Fallback to empty graph if generation fails
-        graph.value = { nodes: [], edges: [] };
-      }
+      const generatedGraph = generateLayoutGraph(data.points);
+      graph.value = generatedGraph;
+      await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);
     }
-    
-    // Clone to working graph
     resetWorkingGraph();
-    
-    // Process image
-    if (data.image) {
-      console.log(`Loading image data, length: ${data.image.length}`);
-      imageData.value = data.image;
-    } else {
-      console.log("No image data found in response");
-    }
+    if (data.image) imageData.value = data.image;
+
   } catch (err) {
     console.error('Error fetching page data:', err);
     error.value = err.message || 'Failed to load page data';
@@ -325,11 +254,10 @@ const fetchPageData = async () => {
 };
 
 const resetWorkingGraph = () => {
-  // Deep clone the original graph to working graph
   workingGraph.nodes = JSON.parse(JSON.stringify(graph.value.nodes || []));
   workingGraph.edges = JSON.parse(JSON.stringify(graph.value.edges || []));
   resetSelection();
-  modifications.value = [];
+  // modifications.value = []; // This is handled per page load or explicitly by user
 };
 
 const resetSelection = () => {
@@ -338,139 +266,87 @@ const resetSelection = () => {
 };
 
 const onNodeClick = (nodeIndex, event) => {
+  if (isAKeyPressed.value || isDKeyPressed.value) return; // Prevent selection during hover actions
   event.stopPropagation();
-  
-  // If node is already selected, deselect it
   const existingIndex = selectedNodes.value.indexOf(nodeIndex);
   if (existingIndex !== -1) {
     selectedNodes.value.splice(existingIndex, 1);
-    return;
-  }
-  
-  // Add to selection (but limit to 2 nodes)
-  if (selectedNodes.value.length < 2) {
-    selectedNodes.value.push(nodeIndex);
   } else {
-    // Replace selection if already have 2 nodes
-    selectedNodes.value = [nodeIndex];
+    if (selectedNodes.value.length < 2) {
+      selectedNodes.value.push(nodeIndex);
+    } else {
+      selectedNodes.value = [nodeIndex];
+    }
   }
-  
   tempEndPoint.value = null;
 };
 
 const onEdgeClick = (edge, event) => {
+  if (isAKeyPressed.value || isDKeyPressed.value) return; // Prevent selection during hover actions
   event.stopPropagation();
-  
-  // Select the nodes that form this edge
   selectedNodes.value = [edge.source, edge.target];
 };
 
 const onBackgroundClick = () => {
+  if (isAKeyPressed.value || isDKeyPressed.value) return;
   resetSelection();
 };
 
 const edgeExists = (nodeA, nodeB) => {
   return workingGraph.edges.some(e => 
-    (e.source === nodeA && e.target === nodeB) || 
-    (e.source === nodeB && e.target === nodeA)
+    (e.source === nodeA && e.target === nodeB) || (e.source === nodeB && e.target === nodeA)
   );
 };
 
-const addEdge = () => {
+const addEdgeManual = () => { // Renamed to avoid conflict with potential future generic addEdge
   if (selectedNodes.value.length !== 2) return;
-  
   const [source, target] = selectedNodes.value;
+  if (edgeExists(source, target)) return;
   
-  // Check if edge already exists
-  if (edgeExists(source, target)) {
-    console.log('Edge already exists');
-    return;
-  }
-  
-  // Add edge to working graph
-  workingGraph.edges.push({
-    source,
-    target,
-    label: 0, // Default label for same-line connection
-    modified: true
-  });
-  
-  // Track modification
-  modifications.value.push({
-    type: 'add',
-    source,
-    target,
-    label: 0
-  });
-  
+  const newEdge = { source, target, label: 0, modified: true };
+  workingGraph.edges.push(newEdge);
+  modifications.value.push({ type: 'add', ...newEdge });
   resetSelection();
 };
+// Keep original name for button call compatibility
+const addEdge = addEdgeManual;
 
-const deleteEdge = () => {
+
+const deleteEdgeManual = () => { // Renamed to avoid conflict
   if (selectedNodes.value.length !== 2) return;
-  
   const [source, target] = selectedNodes.value;
-  
-  // Find the edge index
   const edgeIndex = workingGraph.edges.findIndex(e => 
-    (e.source === source && e.target === target) ||
-    (e.source === target && e.target === source)
+    (e.source === source && e.target === target) || (e.source === target && e.target === source)
   );
+  if (edgeIndex === -1) return;
   
-  if (edgeIndex === -1) {
-    console.log('Edge not found');
-    return;
-  }
-  
-  // Track modification before removing
-  const removedEdge = workingGraph.edges[edgeIndex];
-  modifications.value.push({
-    type: 'delete',
-    source: removedEdge.source,
-    target: removedEdge.target,
-    label: removedEdge.label
-  });
-  
-  // Remove edge
-  workingGraph.edges.splice(edgeIndex, 1);
-  
+  const removedEdge = workingGraph.edges.splice(edgeIndex, 1)[0];
+  modifications.value.push({ type: 'delete', source: removedEdge.source, target: removedEdge.target, label: removedEdge.label });
   resetSelection();
 };
+// Keep original name for button call compatibility
+const deleteEdge = deleteEdgeManual;
+
 
 const undoModification = (index) => {
   const mod = modifications.value[index];
-  
   if (mod.type === 'add') {
-    // Find and remove the added edge
     const edgeIndex = workingGraph.edges.findIndex(e => 
-      (e.source === mod.source && e.target === mod.target) ||
-      (e.source === mod.target && e.target === mod.source)
+      (e.source === mod.source && e.target === mod.target) || (e.source === mod.target && e.target === mod.source)
     );
-    
-    if (edgeIndex !== -1) {
-      workingGraph.edges.splice(edgeIndex, 1);
-    }
+    if (edgeIndex !== -1) workingGraph.edges.splice(edgeIndex, 1);
   } else if (mod.type === 'delete') {
-    // Re-add the deleted edge
-    workingGraph.edges.push({
-      source: mod.source,
-      target: mod.target,
-      label: mod.label
-    });
+    workingGraph.edges.push({ source: mod.source, target: mod.target, label: mod.label, modified: true }); // Re-added edge is modified from original state
   }
-  
-  // Remove this modification from the list
   modifications.value.splice(index, 1);
 };
 
 const resetModifications = () => {
-  resetWorkingGraph();
+  resetWorkingGraph(); // This reloads from original graph.value
+  modifications.value = []; // And clears modification log
 };
 
-// #TODO add code to save the updated graph
-const isNodeSelected = (nodeIndex) => {
-  return selectedNodes.value.includes(nodeIndex);
-};
+const isNodeSelected = (nodeIndex) => selectedNodes.value.includes(nodeIndex);
 
 const isEdgeSelected = (edge) => {
   return selectedNodes.value.length === 2 &&
@@ -479,179 +355,331 @@ const isEdgeSelected = (edge) => {
 };
 
 const getEdgeColor = (edge) => {
-  // Modified edges get a different color
-  if (edge.modified) return '#f44336';
-  // Original edge coloring logic
-  return edge.label === 0 ? '#ffffff' : '#e74c3c';
+  if (edge.modified) return '#f44336'; // Highlight modified edges
+  return edge.label === 0 ? '#ffffff' : '#e74c3c'; // Original logic
 };
 
-const nextPage = async () => { // Make it async if saveModifications is async
-  if (modifications.value.length > 0) {
-    if (confirm('You have unsaved changes. Do you want to save them before moving to the next page?')) {
-      try {
-        await saveModifications(); // Assuming saveModifications is async and returns a Promise
-        annotationStore.nextPage();
-      } catch (err) {
-        console.error("Failed to save, not navigating to next page:", err);
-        // Optionally, inform the user about the save failure
-      }
-    } else {
-      modifications.value = []; // Discard changes
-      annotationStore.nextPage();
-    }
-  } else {
-    annotationStore.nextPage();
-  }
+const getNodeColor = (nodeIndex) => {
+  if (isAKeyPressed.value && hoveredNodesForMST.has(nodeIndex)) return '#00bcd4'; // Cyan for hover-collect
+  return isNodeSelected(nodeIndex) ? '#ff9500' : '#f44336';
 };
 
-const previousPage = async () => { // Make it async
+const getNodeRadius = (nodeIndex) => {
+  if (isAKeyPressed.value && hoveredNodesForMST.has(nodeIndex)) return 5;
+  return isNodeSelected(nodeIndex) ? 6 : 3;
+};
+
+// Navigation with save confirmation
+const confirmAndNavigate = async (navigationAction) => {
   if (modifications.value.length > 0) {
-    if (confirm('You have unsaved changes. Do you want to save them before moving to the previous page?')) {
+    if (confirm('You have unsaved changes. Do you want to save them before navigating?')) {
       try {
         await saveModifications();
-        annotationStore.previousPage();
+        navigationAction();
       } catch (err) {
-        console.error("Failed to save, not navigating to previous page:", err);
+        console.error("Failed to save, navigation cancelled:", err);
+        alert("Failed to save changes. Please try again or discard changes to navigate.");
       }
     } else {
       modifications.value = []; // Discard changes
-      annotationStore.previousPage();
+      navigationAction();
     }
   } else {
-    annotationStore.previousPage();
+    navigationAction();
   }
 };
 
-// Add mouse move handler for visualization when selecting nodes
-const handleMouseMove = (event) => {
-  if (!editMode.value || selectedNodes.value.length !== 1) return;
+const nextPage = () => confirmAndNavigate(() => annotationStore.nextPage());
+const previousPage = () => confirmAndNavigate(() => annotationStore.previousPage());
+
+// --- New Hover Interaction Logic ---
+
+const handleGlobalKeyDown = (e) => {
+  if (!editMode.value || e.repeat) return; // Only in edit mode, ignore repeats for initial press
+
+  if (e.key.toLowerCase() === 'd') {
+    e.preventDefault();
+    isDKeyPressed.value = true;
+    resetSelection(); // Clear selection when starting hover-delete
+  }
+  if (e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    isAKeyPressed.value = true;
+    hoveredNodesForMST.clear();
+    resetSelection(); // Clear selection when starting hover-add
+  }
+};
+
+const handleGlobalKeyUp = (e) => {
+  if (!editMode.value) return;
+
+  if (e.key.toLowerCase() === 'd') {
+    isDKeyPressed.value = false;
+  }
+  if (e.key.toLowerCase() === 'a') {
+    isAKeyPressed.value = false;
+    if (hoveredNodesForMST.size >= 2) {
+      addMSTEdges();
+    }
+    hoveredNodesForMST.clear();
+  }
+};
+
+const handleSvgMouseMove = (event) => {
+  if (!editMode.value || !svgOverlayRef.value) return;
+
+  const svgRect = svgOverlayRef.value.getBoundingClientRect();
+  const mouseX = event.clientX - svgRect.left;
+  const mouseY = event.clientY - svgRect.top;
+
+  if (isDKeyPressed.value) {
+    handleEdgeHoverDelete(mouseX, mouseY);
+  } else if (isAKeyPressed.value) {
+    handleNodeHoverCollect(mouseX, mouseY);
+  } else if (selectedNodes.value.length === 1) {
+    tempEndPoint.value = { x: mouseX, y: mouseY };
+  } else {
+    tempEndPoint.value = null;
+  }
+};
+
+const handleSvgMouseLeave = () => {
+    // If 'a' is not held, clear tempEndPoint when mouse leaves SVG
+    if (selectedNodes.value.length === 1 && !isAKeyPressed.value && !isDKeyPressed.value) {
+        tempEndPoint.value = null;
+    }
+    // Note: hoveredNodesForMST is cleared on 'a' keyup, not on mouse leave.
+};
+
+
+function distanceToLineSegment(px, py, x1, y1, x2, y2) {
+  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+}
+
+const handleEdgeHoverDelete = (mouseX, mouseY) => {
+  for (let i = workingGraph.edges.length - 1; i >= 0; i--) {
+    const edge = workingGraph.edges[i];
+    const nodeSource = workingGraph.nodes[edge.source];
+    const nodeTarget = workingGraph.nodes[edge.target];
+
+    if (!nodeSource || !nodeTarget) continue;
+
+    const x1 = scaleX(nodeSource.x);
+    const y1 = scaleY(nodeSource.y);
+    const x2 = scaleX(nodeTarget.x);
+    const y2 = scaleY(nodeTarget.y);
+
+    const dist = distanceToLineSegment(mouseX, mouseY, x1, y1, x2, y2);
+
+    if (dist < EDGE_HOVER_THRESHOLD) {
+      const removedEdge = workingGraph.edges.splice(i, 1)[0];
+      modifications.value.push({
+        type: 'delete',
+        source: removedEdge.source,
+        target: removedEdge.target,
+        label: removedEdge.label,
+      });
+      // No break, continue checking other edges to delete all under cursor (sweep delete)
+    }
+  }
+};
+
+const handleNodeHoverCollect = (mouseX, mouseY) => {
+  workingGraph.nodes.forEach((node, index) => {
+    const nodeX = scaleX(node.x);
+    const nodeY = scaleY(node.y);
+    const distSq = (mouseX - nodeX) ** 2 + (mouseY - nodeY) ** 2;
+    if (distSq < NODE_HOVER_RADIUS ** 2) {
+      hoveredNodesForMST.add(index);
+    }
+  });
+};
+
+class DSU {
+  constructor() {
+    this.parent = [];
+    this.nodeMap = new Map(); 
+    this.reverseNodeMap = new Map(); 
+  }
+
+  init(nodeIndices) {
+    this.parent = Array(nodeIndices.length).fill(0).map((_, i) => i);
+    this.nodeMap.clear();
+    this.reverseNodeMap.clear();
+    nodeIndices.forEach((originalIndex, dsuIndex) => {
+      this.nodeMap.set(originalIndex, dsuIndex);
+      this.reverseNodeMap.set(dsuIndex, originalIndex);
+    });
+  }
   
-  const rect = container.value.getBoundingClientRect();
-  tempEndPoint.value = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
-  };
+  find(originalNodeIndex) {
+    const i = this.nodeMap.get(originalNodeIndex);
+    if (this.parent[i] === i) return i;
+    // Path compression: map result of find back to original node index space, then find again
+    const rootOriginalNodeIndex = this.reverseNodeMap.get(this.parent[i]);
+    const rootDsuIndex = this.find(rootOriginalNodeIndex); // find expects original index
+    this.parent[i] = rootDsuIndex; // Store DSU index
+    return rootDsuIndex;
+  }
+
+  union(originalNodeIndex1, originalNodeIndex2) {
+    const root1DsuIndex = this.find(originalNodeIndex1);
+    const root2DsuIndex = this.find(originalNodeIndex2);
+    if (root1DsuIndex !== root2DsuIndex) {
+      this.parent[root2DsuIndex] = root1DsuIndex;
+      return true;
+    }
+    return false;
+  }
+}
+
+function calculateMST(nodeIndices, allNodesData) {
+  if (nodeIndices.length < 2) return [];
+
+  const pointsData = nodeIndices.map(index => ({ ...allNodesData[index], originalIndex: index }));
+  const mstEdges = [];
+
+  const potentialEdges = [];
+  for (let i = 0; i < pointsData.length; i++) {
+    for (let j = i + 1; j < pointsData.length; j++) {
+      const p1 = pointsData[i];
+      const p2 = pointsData[j];
+      const dist = Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+      potentialEdges.push({ source: p1.originalIndex, target: p2.originalIndex, weight: dist });
+    }
+  }
+
+  potentialEdges.sort((a, b) => a.weight - b.weight);
+
+  const dsu = new DSU();
+  dsu.init(nodeIndices);
+
+  for (const edge of potentialEdges) {
+    if (dsu.union(edge.source, edge.target)) {
+      mstEdges.push({ source: edge.source, target: edge.target });
+    }
+  }
+  return mstEdges;
+}
+
+const addMSTEdges = () => {
+  const nodesToConnect = Array.from(hoveredNodesForMST);
+  if (nodesToConnect.length < 2) return;
+
+  const mstNewEdges = calculateMST(nodesToConnect, workingGraph.nodes);
+  mstNewEdges.forEach(edge => {
+    if (!edgeExists(edge.source, edge.target)) {
+      const newEdge = {
+        source: edge.source,
+        target: edge.target,
+        label: 0,
+        modified: true,
+      };
+      workingGraph.edges.push(newEdge);
+      modifications.value.push({ type: 'add', ...newEdge });
+    }
+  });
 };
 
 // Watch for page changes
-watch(
-  () => annotationStore.currentPage,
-  (newPage, oldPage) => {
-    if (newPage) {
-      // Fetch data if the page ID actually changed, or if it's an initial load for this page
-      // (e.g. newPage is set, but imageLoaded.value is false)
-      console.log(`Component Watcher: currentPage changed from ${oldPage} to ${newPage}.`);
-      fetchPageData(); // Your existing function to fetch page-specific details
-    } else if (oldPage && !newPage) {
-      // currentPage was cleared (e.g., after reset or no pages available)
-      console.log("Component Watcher: currentPage became undefined. Clearing local data.");
-      // Reset component's page-specific data
+watch(() => annotationStore.currentPage, (newPage, oldPage) => {
+    if (newPage && newPage !== oldPage) {
+      fetchPageData();
+    } else if (!newPage && oldPage) { // Page cleared
       points.value = [];
       graph.value = { nodes: [], edges: [] };
       imageData.value = '';
       imageLoaded.value = false;
       modifications.value = [];
-      resetWorkingGraph(); // Your function to reset working graph
-      loading.value = false; // Or true if you want to show a loading state for "no page"
+      resetWorkingGraph();
+      loading.value = false;
       error.value = null;
     }
   },
-  { immediate: true } // Crucial: runs the watcher handler immediately on component mount
+  { immediate: true }
 );
 
 // Watch for edit mode toggle
 watch(editMode, (newValue) => {
-  if (newValue) {
-    // Add mouse move listener when entering edit mode
-    document.addEventListener('mousemove', handleMouseMove);
-  } else {
-    // Remove listener when leaving edit mode
-    // It's safe to call removeEventListener even if the listener wasn't added for some reason
-    document.removeEventListener('mousemove', handleMouseMove);
+  if (!newValue) { // Exiting edit mode
     resetSelection();
+    isAKeyPressed.value = false;
+    isDKeyPressed.value = false;
+    hoveredNodesForMST.clear();
+    tempEndPoint.value = null;
   }
-}, { immediate: true }); // <--- ADD THIS
+});
 
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeyDown);
+  window.addEventListener('keyup', handleGlobalKeyUp);
+  // Initial fetch if currentPage is already set (e.g. on page refresh)
+  if (annotationStore.currentPage && !imageLoaded.value && !loading.value) {
+      fetchPageData();
+  }
+});
 
-
-
-
-// Clean up
-onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove);
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeyDown);
+  window.removeEventListener('keyup', handleGlobalKeyUp);
 });
 
 const saveModifications = async () => {
+  loading.value = true; // Indicate saving
   try {
-    console.log('Saving modifications and generating line labels...');
-    
-    // Prepare the request with the modified graph data
     const request = {
-          graph: workingGraph,
-          modifications: modifications.value,
-          points: points.value.map(point => point.segment),
-          modelName: annotationStore.modelName // <<< ADD THIS LINE
-        };
+      graph: workingGraph,
+      modifications: modifications.value, // Send current modifications list
+      points: points.value.map(point => point.segment), // Assuming this is still needed
+      modelName: annotationStore.modelName
+    };
 
-    console.log('About to send POST to /semi-segment. annotationStore.modelName:', annotationStore.modelName); // DEBUG LINE
-
-    
     const response = await fetch(
-      import.meta.env.VITE_BACKEND_URL + 
-      `/semi-segment/${manuscriptName.value}/${currentPage.value}`,
+      `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscriptName.value}/${currentPage.value}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       }
     );
-    
-// In Page C (new-SemiSegmentationSection.vue) - saveModifications
-// ... (fetch call) ...
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to parse error response from backend" }));
-      console.error('Backend error response during save/recognition:', errorData); // Log backend error
+      const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
       throw new Error(errorData.error || 'Failed to save modifications and generate labels');
     }
 
-    const responseData = await response.json(); // Assuming backend sends JSON on success too
-    console.log('Page C: Save and recognition RESPONSE DATA:', responseData); // <<< CRITICAL LOG 1
-
-    // Update the original graph state in this component
+    const responseData = await response.json();
+    
+    // Update the component's base graph to reflect saved state
     graph.value = JSON.parse(JSON.stringify(workingGraph));
-    modifications.value = [];
+    modifications.value = []; // Clear modifications log as they are now saved
 
-    // **** PROCESS RECOGNIZED LINES AND UPDATE STORE ****
-    if (responseData.lines) { // <<< IS THIS CONDITION MET?
-      console.log('Page C: responseData.lines IS PRESENT. Lines:', responseData.lines); // <<< CRITICAL LOG 2
+    if (responseData.lines) {
       if (!annotationStore.recognitions[manuscriptName.value]) {
-        // This case should be rare if Page A initializes it
-        console.warn('Page C: Initializing manuscript in recognitions:', manuscriptName.value);
         annotationStore.recognitions[manuscriptName.value] = {};
       }
-      // This replaces the (likely empty) page entry with detailed line data
       annotationStore.recognitions[manuscriptName.value][currentPage.value] = responseData.lines;
-      console.log(`Page C: Line data updated in store for manuscript '${manuscriptName.value}', page '${currentPage.value}'. New page data:`, JSON.parse(JSON.stringify(annotationStore.recognitions[manuscriptName.value][currentPage.value]))); // <<< CRITICAL LOG 3
     } else {
-      console.warn('Page C: NO responseData.lines received in response from /semi-segment POST.'); // <<< CRITICAL LOG 4
-      // Initialize page data if it wasn't there, though it should be from Page A upload
-      if (annotationStore.recognitions[manuscriptName.value] && !annotationStore.recognitions[manuscriptName.value][currentPage.value]) {
-         console.warn('Page C: Initializing empty page data in store because responseData.lines was missing.');
-         annotationStore.recognitions[manuscriptName.value][currentPage.value] = {};
+       if (annotationStore.recognitions[manuscriptName.value] && !annotationStore.recognitions[manuscriptName.value][currentPage.value]) {
+         annotationStore.recognitions[manuscriptName.value][currentPage.value] = {}; // Initialize if structure expects it
       }
     }
     error.value = null;
-    console.log('Page C: Graph modifications saved and page recognized successfully (or lines processing attempted).');
+    console.log('Graph modifications saved and page recognized successfully.');
   } catch (err) {
     console.error('Error saving modifications:', err);
     error.value = err.message || 'Failed to save modifications';
+    // Do not clear modifications.value here, so user can try saving again
+  } finally {
+    loading.value = false; // Finish loading indication
   }
 };
-
-
 
 </script>
 
@@ -661,6 +689,7 @@ const saveModifications = async () => {
   flex-direction: column;
   height: 100%;
   width: 100%;
+  overflow: hidden; /* Prevent tool from overflowing viewport */
 }
 
 .toolbar {
@@ -670,6 +699,7 @@ const saveModifications = async () => {
   padding: 8px;
   background-color: #f5f5f5;
   border-bottom: 1px solid #ddd;
+  flex-shrink: 0; /* Toolbar should not shrink */
 }
 
 .controls {
@@ -682,21 +712,34 @@ const saveModifications = async () => {
   display: flex;
   gap: 8px;
 }
+.toggle-container label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
 
 .visualization-container {
   position: relative;
-  overflow: auto;
-  flex: 1;
+  overflow: auto; /* Important for scrollbars if image is larger */
+  flex-grow: 1; /* Container should take available space */
   background-color: #eee;
+  display: flex; /* For centering image-container if needed */
+  justify-content: center; /* Center image horizontally */
+  align-items: flex-start; /* Align image to top, or center if preferred */
 }
 
 .image-container {
-  position: relative;
-  margin: 0 auto;
+  position: relative; /* For absolute positioning of overlays */
+  /* margin: auto; /* Centers the block element if parent is flex and aligns items center */
+  /* Or remove margin: auto if visualization-container handles centering */
 }
 
+
 .manuscript-image {
-  display: block;
+  display: block; /* Removes extra space below image */
+  max-width: 100%; /* Ensures image is responsive within its container */
+  max-height: 100%; /* Ensures image is responsive within its container */
+  user-select: none; /* Prevent image selection */
 }
 
 .placeholder-image {
@@ -713,7 +756,7 @@ const saveModifications = async () => {
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  pointer-events: none; /* Allows clicks to pass through to SVG/image */
 }
 
 .point {
@@ -729,9 +772,13 @@ const saveModifications = async () => {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  /* width and height are bound to scaledWidth/Height */
+  cursor: default; /* Default cursor for SVG background */
 }
+.graph-overlay circle:hover, .graph-overlay line:hover {
+    /* Optional: subtle hover effects if not handled by selection/key press states */
+}
+
 
 .loading {
   padding: 20px;
@@ -741,31 +788,36 @@ const saveModifications = async () => {
 }
 
 .error-message {
-  padding: 20px;
-  background-color: #fee;
-  color: #c00;
-  border: 1px solid #faa;
+  padding: 10px; /* Reduced padding */
+  background-color: #ffebee; /* Lighter red */
+  color: #c62828; /* Darker red text */
+  border: 1px solid #ef9a9a; /* Lighter red border */
   margin: 10px;
   border-radius: 4px;
+  text-align: center;
 }
 
-/* Edit mode styling */
 .edit-controls {
   padding: 10px;
   background-color: #f9f9f9;
-  border-bottom: 1px solid #ddd;
+  border-top: 1px solid #ddd; /* Changed from bottom to top for typical layout */
+  flex-shrink: 0; /* Controls should not shrink */
 }
 
 .edit-instructions {
   margin-bottom: 10px;
-  font-size: 14px;
+  font-size: 0.9em; /* Slightly smaller */
   color: #555;
 }
+.edit-instructions p {
+  margin: 5px 0; /* Spacing for instruction paragraphs */
+}
+
 
 .edit-actions {
   display: flex;
   gap: 8px;
-  margin-bottom: 15px;
+  margin-bottom: 10px; /* Added margin for spacing from log */
 }
 
 button {
@@ -774,38 +826,72 @@ button {
   border: 1px solid #ccc;
   background-color: #fff;
   cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
 }
 
-button:hover {
-  background-color: #f0f0f0;
+button:hover:not(:disabled) {
+  background-color: #e0e0e0; /* Darker hover */
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.6; /* More visible disabled state */
   cursor: not-allowed;
+  background-color: #f5f5f5; /* Lighter bg for disabled */
 }
 
-.modifications-log {
+.modifications-log-container {
+  padding: 10px;
+  background-color: #f0f0f0; /* Slightly different background */
   border-top: 1px solid #ddd;
-  padding-top: 10px;
-  margin-top: 10px;
+  flex-shrink: 0; /* Log should not shrink */
+}
+.modifications-log-container > button { /* Style for the main Save Graph button */
+    margin-bottom: 10px;
 }
 
-.modifications-log h3 {
-  font-size: 16px;
-  margin-bottom: 10px;
+
+.modifications-details h3 {
+  font-size: 1.1em; /* Slightly larger */
+  margin-top: 0; /* Remove top margin if it's the first element */
+  margin-bottom: 8px;
+  color: #333;
+}
+.modifications-details > button { /* Style for Reset All Changes button */
+    margin-bottom: 10px;
+}
+
+
+.modifications-details ul {
+  list-style-type: none;
+  padding: 0;
+  max-height: 150px; /* Limit height and make scrollable if too many */
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  border-radius: 3px;
 }
 
 .modification-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 0;
+  padding: 6px 8px; /* Adjusted padding */
   border-bottom: 1px solid #eee;
+  font-size: 0.85em; /* Smaller font for list items */
+}
+.modification-item:last-child {
+  border-bottom: none;
 }
 
+
 .undo-button {
-  font-size: 12px;
-  padding: 2px 6px;
+  font-size: 0.9em; /* Relative to parent button size */
+  padding: 3px 8px; /* Smaller padding */
+  background-color: #fffde7; /* Light yellow */
+  border-color: #fff59d; /* Yellow border */
+}
+.undo-button:hover:not(:disabled) {
+  background-color: #fff9c4; /* Darker yellow hover */
 }
 </style>

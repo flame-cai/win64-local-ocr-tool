@@ -1,0 +1,18 @@
+The follow is the code of a .vue annotation tool which does the following:
+This Annotation tool is used for annotating the layout of Historical Manuscripts, which handwritten, curvy line, messy footnotes etc. 
+To do this, an upstream application already marks each character present on the manusscript page as a node, and connects each node (character) to it's previous and next characters.
+Hence for each page the code loads a graph, with nodes representing a character, and edges connecting a character to it's previous and next characters.
+Ideally all nodes of a text-line have to be connected together with edges. 
+But sometimes the upstream algorith makes mistakes, requiring us to annotate - by adding or deleting edges.
+Once annotation is done, we can save the updated_graph.
+The tool also has other downstream applications such as Annnotate text.
+
+Primarily right now, I want your help in improving the User Experience (UX) of addition and deletion of edges. PLease make the following changes
+ - when I press and hold 'd' all edges I HOVER over get deleted
+ - When I press and hold 'a' , all the nodes I HOVER over, get connected with edges using a Minimum Spanning Tree
+ - Have a threshold, such that I won't need to HOVER exactly over the nodes to join, it's okay if I just hover near them (but still close)
+ This make require making extensive changes to the code. Please make them, but make sure all other functions apart from the UX remain the same.
+ I should be able to use the new code a drop in replacement.
+ - minor change: also all me to save the graph, even if I have not made any modifications. 
+ - replace buttons:  Show Points, Show Graph, Edit Mode! with only Edit Mode (we can show graph and points when Edit Mode is on). Edit Mode will be ON by default.
+ 
