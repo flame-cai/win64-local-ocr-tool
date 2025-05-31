@@ -3,17 +3,21 @@
     <div class="toolbar">
       <h2>{{ manuscriptName }} - Page {{ currentPage }}</h2>
       <div class="controls">
-        <button @click="previousPage" :disabled="loading">Previous</button>
-        <button @click="nextPage" :disabled="loading">Next</button>
-        <button @click="goToIMG2TXTPage">Annotate Text</button>
+        <button @click="previousPage" :disabled="loading || isProcessingSave">Previous</button>
+        <button @click="nextPage" :disabled="loading || isProcessingSave">Next</button>
+        <button @click="goToIMG2TXTPage" :disabled="loading || isProcessingSave">Annotate Text</button>
         <div class="toggle-container">
           <label>
-            <input type="checkbox" v-model="editMode" />
+            <input type="checkbox" v-model="editMode" :disabled="isProcessingSave" />
             Edit Mode
           </label>
         </div>
       </div>
     </div>
+    <div v-if="isProcessingSave" class="processing-save-notice">
+      Saving graph and processing... Please wait.
+    </div>
+
 
     <div v-if="error" class="error-message">
       {{ error }}
@@ -157,7 +161,7 @@ const annotationStore = useAnnotationStore();
 
 const manuscriptName = computed(() => Object.keys(annotationStore.recognitions)[0] || '');
 const currentPage = computed(() => annotationStore.currentPage);
-
+const isProcessingSave = ref(false); // For UX during save before navigation
 const loading = ref(true);
 const error = ref(null);
 const dimensions = ref([0, 0]);
@@ -172,7 +176,7 @@ const tempEndPoint = ref(null);
 const modifications = ref([]);
 const workingGraph = reactive({ nodes: [], edges: [] });
 
-const scaleFactor = 0.8;
+const scaleFactor = 0.5;
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor));
 const scaledHeight = computed(() => Math.floor(dimensions.value[1] * scaleFactor));
 const scaleX = (x) => x * scaleFactor;
@@ -185,7 +189,7 @@ const svgOverlayRef = ref(null); // Ref for the SVG element
 const isDKeyPressed = ref(false);
 const isAKeyPressed = ref(false);
 const hoveredNodesForMST = reactive(new Set());
-const NODE_HOVER_RADIUS = 5; // Pixels on scaled view for node proximity
+const NODE_HOVER_RADIUS = 2; // Pixels on scaled view for node proximity
 const EDGE_HOVER_THRESHOLD = 2; // Pixels on scaled view for edge proximity
 
 // Computed properties for UI elements linked to editMode
@@ -193,8 +197,30 @@ const effectiveShowPoints = computed(() => editMode.value);
 const effectiveShowGraph = computed(() => editMode.value);
 const graphIsLoaded = computed(() => workingGraph.nodes && workingGraph.nodes.length > 0);
 
-const goToIMG2TXTPage = () => {
-  router.push({ name: 'img-2-txt' });
+const goToIMG2TXTPage = async () => {
+  if (isProcessingSave.value) return; // Prevent double-clicks
+
+  if (editMode.value && graphIsLoaded.value) {
+    isProcessingSave.value = true;
+    try {
+      console.log("Attempting to save graph before navigating to Annotate Text...");
+      await saveModifications(); // saveModifications should handle its own error display if needed
+      console.log("Graph saved successfully. Navigating to Annotate Text.");
+      router.push({ name: 'img-2-txt' });
+    } catch (err) {
+      // saveModifications should ideally set its own error ref
+      // or this component can display a generic error based on the catch
+      console.error("Failed to save graph before navigating:", err);
+      // Optionally, display an alert or a more prominent error message to the user
+      alert(`Error saving graph: ${err.message}. Cannot proceed to Annotate Text.`);
+    } finally {
+      isProcessingSave.value = false;
+    }
+  } else {
+    // If not in edit mode or no graph is loaded, just navigate
+    console.log("Not in edit mode or no graph loaded. Navigating directly to Annotate Text.");
+    router.push({ name: 'img-2-txt' });
+  }
 };
 
 const updateCanvasSize = (width, height) => {
@@ -371,14 +397,21 @@ const getNodeRadius = (nodeIndex) => {
 
 // Navigation with save confirmation
 const confirmAndNavigate = async (navigationAction) => {
+  if (isProcessingSave.value) {
+    alert("Please wait for the current save operation to complete.");
+    return;
+  }
   if (modifications.value.length > 0) {
     if (confirm('You have unsaved changes. Do you want to save them before navigating?')) {
+      isProcessingSave.value = true;
       try {
         await saveModifications();
         navigationAction();
       } catch (err) {
         console.error("Failed to save, navigation cancelled:", err);
         alert("Failed to save changes. Please try again or discard changes to navigate.");
+      } finally {
+        isProcessingSave.value = false;
       }
     } else {
       modifications.value = []; // Discard changes
@@ -589,13 +622,17 @@ const addMSTEdges = () => {
 
 // Watch for page changes
 watch(() => annotationStore.currentPage, (newPage, oldPage) => {
+    if (isProcessingSave.value) {
+      console.warn("Page change triggered while processing save, deferring fetchPageData.");
+      // Decide if you want to queue the page change or prevent it
+      return;
+    }
     if (newPage && newPage !== oldPage) {
       fetchPageData();
-    } else if (!newPage && oldPage) { // Page cleared
+    } else if (!newPage && oldPage) { 
       points.value = [];
       graph.value = { nodes: [], edges: [] };
-      imageData.value = '';
-      imageLoaded.value = false;
+      // ... reset other page specific data
       modifications.value = [];
       resetWorkingGraph();
       loading.value = false;
@@ -620,7 +657,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeyDown);
   window.addEventListener('keyup', handleGlobalKeyUp);
   // Initial fetch if currentPage is already set (e.g. on page refresh)
-  if (annotationStore.currentPage && !imageLoaded.value && !loading.value) {
+  if (annotationStore.currentPage && !imageLoaded.value && !loading.value && !isProcessingSave.value) {
       fetchPageData();
   }
 });
@@ -631,15 +668,22 @@ onBeforeUnmount(() => {
 });
 
 const saveModifications = async () => {
-  loading.value = true; // Indicate saving
-  try {
-    const request = {
-      graph: workingGraph,
-      modifications: modifications.value, // Send current modifications list
-      points: points.value.map(point => point.segment), // Assuming this is still needed
-      modelName: annotationStore.modelName
-    };
+  // Ensure isProcessingSave is also managed if this function is called directly
+  // However, it's better to have a separate function for the button if behavior needs to differ
+  // For now, assuming saveModifications is the core save logic.
+  // loading.value = true; // This is handled by the saveModificationsAndStay or by goToIMG2TXTPage's isProcessingSave
 
+  // The original saveModifications logic:
+  try {
+    console.log('Saving modifications and generating line labels...');
+    
+    const request = {
+          graph: workingGraph,
+          modifications: modifications.value,
+          points: points.value.map(point => point.segment),
+          modelName: annotationStore.modelName
+        };
+    
     const response = await fetch(
       `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscriptName.value}/${currentPage.value}`,
       {
@@ -650,14 +694,16 @@ const saveModifications = async () => {
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+      const errorData = await response.json().catch(() => ({ error: "Failed to parse error response from backend" }));
+      console.error('Backend error response during save/recognition:', errorData);
       throw new Error(errorData.error || 'Failed to save modifications and generate labels');
     }
 
     const responseData = await response.json();
-    
-    // Update the component's base graph to reflect saved state
-    graph.value = JSON.parse(JSON.stringify(workingGraph));
+    console.log('Save and recognition RESPONSE DATA:', responseData);
+
+    // Update the original graph state in this component
+    graph.value = JSON.parse(JSON.stringify(workingGraph)); // graph is the 'base' graph
     modifications.value = []; // Clear modifications log as they are now saved
 
     if (responseData.lines) {
@@ -665,19 +711,40 @@ const saveModifications = async () => {
         annotationStore.recognitions[manuscriptName.value] = {};
       }
       annotationStore.recognitions[manuscriptName.value][currentPage.value] = responseData.lines;
+      console.log(`Line data updated in store for manuscript '${manuscriptName.value}', page '${currentPage.value}'.`);
     } else {
-       if (annotationStore.recognitions[manuscriptName.value] && !annotationStore.recognitions[manuscriptName.value][currentPage.value]) {
-         annotationStore.recognitions[manuscriptName.value][currentPage.value] = {}; // Initialize if structure expects it
+      console.warn('NO responseData.lines received in response from /semi-segment POST.');
+      if (annotationStore.recognitions[manuscriptName.value] && !annotationStore.recognitions[manuscriptName.value][currentPage.value]) {
+         console.warn('Initializing empty page data in store because responseData.lines was missing.');
+         annotationStore.recognitions[manuscriptName.value][currentPage.value] = {};
       }
     }
-    error.value = null;
+    error.value = null; // Clear previous errors
     console.log('Graph modifications saved and page recognized successfully.');
   } catch (err) {
     console.error('Error saving modifications:', err);
     error.value = err.message || 'Failed to save modifications';
-    // Do not clear modifications.value here, so user can try saving again
+    throw err; // Re-throw the error so the calling function (goToIMG2TXTPage) knows it failed
   } finally {
-    loading.value = false; // Finish loading indication
+    // loading.value = false; // Handled by the wrapper
+  }
+};
+
+// New function for the "Save Graph" button to provide its own loading/processing state if needed
+const saveModificationsAndStay = async () => {
+  if (isProcessingSave.value) return; // Prevent double processing
+
+  isProcessingSave.value = true;
+  try {
+    await saveModifications();
+    // Optionally, show a success message like "Graph saved!"
+    alert("Graph saved successfully!"); // Simple feedback
+  } catch (err) {
+    // Error is already logged by saveModifications
+    // Optionally, show an error message like "Failed to save graph."
+    alert(`Failed to save graph: ${err.message}`); // Simple feedback
+  } finally {
+    isProcessingSave.value = false;
   }
 };
 
@@ -707,6 +774,20 @@ const saveModifications = async () => {
   align-items: center;
   gap: 12px;
 }
+
+.toolbar button:disabled,
+.modifications-log-container button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.toggle-container label input[type="checkbox"]:disabled + span { /* If you wrap text in span */
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.toggle-container label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
 
 .toggle-container {
   display: flex;
@@ -778,6 +859,23 @@ const saveModifications = async () => {
 .graph-overlay circle:hover, .graph-overlay line:hover {
     /* Optional: subtle hover effects if not handled by selection/key press states */
 }
+
+.processing-save-notice {
+  position: fixed; /* Or absolute if you want it within a specific container */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 8px;
+  z-index: 10000; /* Ensure it's on top */
+  font-size: 1.1em;
+  text-align: center;
+}
+
+
+
 
 
 .loading {
