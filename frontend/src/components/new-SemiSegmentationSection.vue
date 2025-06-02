@@ -1,7 +1,7 @@
 <template>
   <div class="manuscript-viewer">
     <div class="toolbar">
-      <h2>{{ manuscriptName }} - Page {{ currentPage }}</h2>
+      <h9>{{ manuscriptName }} - Page {{ currentPage }}</h9>
       <div class="controls">
         <button @click="previousPage" :disabled="loading || isProcessingSave">Previous</button>
         <button @click="nextPage" :disabled="loading || isProcessingSave">Next</button>
@@ -11,6 +11,12 @@
             <input type="checkbox" v-model="editMode" :disabled="isProcessingSave" />
             Edit Mode
           </label>
+        </div>
+        <br>
+        <div class="edit-instructions">
+          <p v-if="selectedNodes.length === 0">Hold 'a' and hover over nodes to connect them.<br>Hold 'd' and hover over edges to delete them.</p>
+          <p v-else-if="selectedNodes.length === 1">Click a second node to select it for creating/deleting an edge, or click background/another node to change selection.</p>
+          <p v-else>Click "Add Edge" or "Delete Edge" below, or click background/another node to change selection.</p>
         </div>
       </div>
     </div>
@@ -24,7 +30,6 @@
     </div>
 
     <div v-if="loading" class="loading">
-      Loading page data...
     </div>
 
     <div v-else class="visualization-container" ref="container">
@@ -107,11 +112,6 @@
     </div>
 
     <div v-if="editMode && !isAKeyPressed && !isDKeyPressed" class="edit-controls">
-      <div class="edit-instructions">
-        <p v-if="selectedNodes.length === 0">Click a node to select it. Hold 'A' and hover over nodes to connect them, or hold 'D' and hover over edges to delete them.</p>
-        <p v-else-if="selectedNodes.length === 1">Click a second node to select it for creating/deleting an edge, or click background/another node to change selection.</p>
-        <p v-else>Click "Add Edge" or "Delete Edge" below, or click background/another node to change selection.</p>
-      </div>
       <div class="edit-actions">
         <button @click="resetSelection">Cancel Selection</button>
         <button 
@@ -382,7 +382,7 @@ const isEdgeSelected = (edge) => {
 
 const getEdgeColor = (edge) => {
   if (edge.modified) return '#f44336'; // Highlight modified edges
-  return edge.label === 0 ? '#ffffff' : '#e74c3c'; // Original logic
+  return edge.label === 0 ? '#42d4f4' : '#e74c3c'; // Original logic
 };
 
 const getNodeColor = (nodeIndex) => {

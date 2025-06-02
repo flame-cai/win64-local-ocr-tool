@@ -94,7 +94,18 @@ def get_points_and_graph(manuscript_name, page):
 
         # Read the image using the appropriate method based on the file extension
         if IMAGE_FILEPATH.lower().endswith('.tif'):
-            image = np.array(Image.open(IMAGE_FILEPATH))
+            pil_image = Image.open(IMAGE_FILEPATH)
+
+            # Save as JPEG — convert mode if needed
+            if pil_image.mode in ("RGBA", "P", "LA"):
+                pil_image.convert("RGB").save(filepath_jpg, "JPEG")
+            else:
+                pil_image.save(filepath_jpg, "JPEG")
+            current_app.logger.info(f"Converted TIFF to JPG at: {filepath_jpg}")
+
+            # Now convert to NumPy array for downstream use
+            image = np.array(pil_image)
+
         else:
             image = plt.imread(IMAGE_FILEPATH)
         

@@ -15,7 +15,7 @@ from annotator.segmentation.utils import load_images_from_folder
 
 
 # ------------------heatmap to point cloud---------
-
+# TODO get size (font size) of blob along with the X,Y co-ordinates
 def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
     """
     Convert a 2D heatmap to a point cloud by identifying local maxima and generating
@@ -95,7 +95,7 @@ def images2points(folder_path):
         os.makedirs(f'instance/manuscripts/{m_name}/points-2D')
 
     for _img,_filename in zip(out_images,file_names):
-        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.png')}",255*_img)
+        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.jpg')}",255*_img)
         
     for points_twoD,_filename in zip(points,file_names):
         np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_twoD, fmt='%d')
