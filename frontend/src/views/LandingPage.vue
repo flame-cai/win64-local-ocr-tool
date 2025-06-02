@@ -16,15 +16,17 @@ annotationStore.reset()
     <main :class="landingPage.main">
       <div :class="landingPage.links">
 
-        <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2"
-          >New Manuscript</RouterLink
-        >
-        <RouterLink :to="{ name: 'upload-manuscript' }" class="btn btn-primary m-2"
-          >Annotate</RouterLink
-        >
-        <RouterLink :to="{ name: 'uploaded-manuscripts' }" class="btn btn-primary m-2"
-          >Uploaded Manuscripts</RouterLink
-        >
+    <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2">
+      New Manuscript / Map
+    </RouterLink>
+
+    <RouterLink :to="{ name: 'upload-manuscript' }" class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2">
+      old version -- Annotate
+    </RouterLink>
+
+    <RouterLink :to="{ name: 'uploaded-manuscripts' }" class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2">
+      old version -- Uploaded Manuscripts
+    </RouterLink>
 
       </div>
     </main>

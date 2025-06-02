@@ -116,8 +116,9 @@ dependencies:
   - defaults/win-64::numpy==2.0.1=py311hdab7c0b_1
   - pytorch/win-64::torchaudio==2.4.1=py311_cu121
   - pytorch/win-64::torchvision==0.19.1=py311_cu121
+  - imagecodecs
   - matplotlib
   - anaconda::scikit-image
   - nodejs
   - conda-forge::conda-pack
-prefix: C:\Users\intro\miniconda3\envs\layout-analysis
+
