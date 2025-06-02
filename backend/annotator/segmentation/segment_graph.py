@@ -95,7 +95,7 @@ def images2points(folder_path):
         os.makedirs(f'instance/manuscripts/{m_name}/points-2D')
 
     for _img,_filename in zip(out_images,file_names):
-        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename.replace('.tif','.jpg')}",255*_img)
+        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
         
     for points_twoD,_filename in zip(points,file_names):
         np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_twoD, fmt='%d')

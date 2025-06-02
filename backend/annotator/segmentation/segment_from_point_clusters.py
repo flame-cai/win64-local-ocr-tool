@@ -44,7 +44,7 @@ def load_points_and_labels(points_file, labels_file):
 
 
 
-def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path="output.png"):
+def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path):
     """
     Assigns labels to given bounding boxes based on the labels of the points they contain. 
     If a bounding box contains points with different labels (typically in tall boxes),
@@ -370,7 +370,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
 
     # Get unique labels
     unique_labels = set(label for _, _, _, _, label in labeled_bboxes)
-    print(f"UNIQUE_LABELS: {unique_labels}")
+    # print(f"UNIQUE_LABELS: {unique_labels}")
     line_images = gen_line_images(img2,unique_labels,labeled_bboxes)
 
     shutil.rmtree(LINES_DIR)

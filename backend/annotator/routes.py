@@ -7,6 +7,7 @@ from flask import Response
 import json
 import io
 
+from werkzeug.utils import secure_filename
 from PIL import Image
 import torch
 import gc
@@ -59,9 +60,25 @@ def new_process_manuscript():
     except Exception as e:
         print(f"An error occured: {e}")
 
-    for file in request.files:
-        filename = request.files[file].filename
-        request.files[file].save(os.path.join(leaves_folder_path, filename))
+    for file_key in request.files:
+        uploaded_file = request.files[file_key]
+        original_filename = secure_filename(uploaded_file.filename)
+        base_filename = os.path.splitext(original_filename)[0]
+
+        # Open uploaded image file as a PIL image
+        image = Image.open(uploaded_file)
+
+        # Convert to RGB if needed (JPEG doesn't support some modes like RGBA)
+        if image.mode in ("RGBA", "P", "LA"):
+            image = image.convert("RGB")
+
+        # Build new filename with .jpg extension
+        new_filename = f"{base_filename}.jpg"
+
+        # Save image as JPEG in leaves_folder_path
+        image.save(os.path.join(leaves_folder_path, new_filename), "JPEG")
+
+        print(f"Saved: {new_filename}")
 
     images2points(os.path.join(folder_path, "leaves"))
     torch.cuda.empty_cache()
@@ -77,38 +94,15 @@ def new_process_manuscript():
 def get_points_and_graph(manuscript_name, page):
     current_app.logger.info("Getting Manuscript Page, Points and previously updated graph (if available)")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
+    IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
+    POINTS_FILEPATH = os.path.join(
+        MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_points.txt"
+    )
+    GRAPH_FILEPATH = os.path.join(
+        MANUSCRIPTS_PATH, manuscript_name, "points-2D"
+    )
     try:
-        filepath_jpg = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
-        filepath_tif = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.tif")
-        filepath_png = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.png")
-
-        # Check which file exists
-        if os.path.exists(filepath_jpg):
-            IMAGE_FILEPATH = filepath_jpg
-        elif os.path.exists(filepath_tif):
-            IMAGE_FILEPATH = filepath_tif
-        elif os.path.exists(filepath_png):
-            IMAGE_FILEPATH = filepath_png
-        else:
-            raise FileNotFoundError("Neither .jpg nor .tif image file found for the given page.")
-
-        # Read the image using the appropriate method based on the file extension
-        if IMAGE_FILEPATH.lower().endswith('.tif'):
-            pil_image = Image.open(IMAGE_FILEPATH)
-
-            # Save as JPEG — convert mode if needed
-            if pil_image.mode in ("RGBA", "P", "LA"):
-                pil_image.convert("RGB").save(filepath_jpg, "JPEG")
-            else:
-                pil_image.save(filepath_jpg, "JPEG")
-            current_app.logger.info(f"Converted TIFF to JPG at: {filepath_jpg}")
-
-            # Now convert to NumPy array for downstream use
-            image = np.array(pil_image)
-
-        else:
-            image = plt.imread(IMAGE_FILEPATH)
-        
+        image = plt.imread(IMAGE_FILEPATH)
         image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2)) # resize image, because heatmap is half
         # Store original dimensions
         height, width = image.shape[:2]
@@ -118,7 +112,6 @@ def get_points_and_graph(manuscript_name, page):
             _image = _image.convert("RGB")
         # Send original dimensions in response
         response = {"dimensions": [width, height]}
-        
         # Convert image to base64 for sending in response
         buffered = io.BytesIO()
         _image.save(buffered, format="JPEG", quality=85)  # Reduced quality for better performance
@@ -126,13 +119,6 @@ def get_points_and_graph(manuscript_name, page):
         response["image"] = img_str
         
         
-        POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_points.txt"
-        )
-        GRAPH_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D"
-        )
-
         if not os.path.exists(POINTS_FILEPATH):
             return {"error": "2D Points not found"}, 404
         # Load points from file
@@ -143,7 +129,7 @@ def get_points_and_graph(manuscript_name, page):
         # Always include points in response
         response["points"] = points
 
-        # Build the expected file name (if old graph exists)
+        # If graph already exist before, load it, else create a new graph in frontend
         graph_file_name = f"{manuscript_name}_page{page}_graph_updated.pt"
         full_file_path = os.path.join(GRAPH_FILEPATH, graph_file_name)
         # Check if the file exists and load it
