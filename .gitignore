@@ -3,12 +3,9 @@ __pycache__
 backend/temp
 backend/saved_models
 backend/.env
-
-deede
-
+backend/instance
 
 test.py
 craft_mlt_25k.pth
 devanagari.pth
 
-backend/instance
