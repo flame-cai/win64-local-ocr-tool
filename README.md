@@ -34,7 +34,7 @@ The application uses two AI model: [CRAFT](https://github.com/clovaai/CRAFT-pyto
 
 
 ### Setup the backend
-In the backend, we used a conda environment, with **Python 3.11.9** and **cuda-12.1.1 Runtime** (with CUDA 12.8 Driver). Please follow the following steps to create the conda environment:
+Please follow the following steps to create the backend conda environment:
 ```
 # go to the backend folder
 cd backend
@@ -42,8 +42,8 @@ cd backend
 # create the conda environment 'san-ocr-tool'
 conda env create -f environment.yml
 
-# activate the conda environment named 'san-ocr-tool'
-conda activate san-ocr-tool
+# activate the conda environment named 'ocr-tool'
+conda activate ocr-tool
 
 # run the backend
 flask run --debug

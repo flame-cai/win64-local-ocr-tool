@@ -45,7 +45,7 @@ function switchToSemiAutoSegmentation() {
   <div class="mb-3">
     <button class="btn btn-primary me-2" @click="uploadGroundTruth">Fine-tune</button>
     <!-- <button class="btn btn-warning me-2" @click="switchToSegmentation">Correct Image Segments</button> -->
-    <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Test Segmentation</button>
+    <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Semi Automatic Segmentation</button>
     <button class="btn btn-success me-2" @click="annotationStore.exportToTxt">Export</button>
     <CharacterPalette />
   </div>

@@ -1,8 +1,5 @@
 import os
 import numpy as np
-# from scipy.spatial import cKDTree
-# from sklearn.cluster import DBSCAN
-# from collections import Counter
 import torch
 from torch_geometric.data import Data
 import json

@@ -1,0 +1,34 @@
+name: ocr-tool
+
+channels:
+  - pytorch
+  - pyg
+  - nvidia       
+  - conda-forge  
+  - defaults    
+
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - scikit-image
+  - matplotlib
+  - pytorch==2.4.1
+  - torchvision
+  - pytorch-cuda=12.1 
+  - pyg
+  - flask
+  - flask-cors
+  - flask-sqlalchemy
+  - werkzeug
+  - pillow
+  - opencv
+  - python-dotenv
+  - packaging
+  - six
+  - lmdb
+  - natsort
+  - pyyaml
+
