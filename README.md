@@ -34,7 +34,7 @@ The application uses two AI model: [CRAFT](https://github.com/clovaai/CRAFT-pyto
 
 
 ### Setup the backend
-In the backend, we used a conda environment, with **Python 3.11.9** and **cuda-12.1.1 Runtime**. Please follow the following steps to create the conda environment:
+In the backend, we used a conda environment, with **Python 3.11.9** and **cuda-12.1.1 Runtime** (with CUDA 12.8 Driver). Please follow the following steps to create the conda environment:
 ```
 # go to the backend folder
 cd backend
