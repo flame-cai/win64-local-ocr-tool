@@ -382,7 +382,7 @@ const isEdgeSelected = (edge) => {
 
 const getEdgeColor = (edge) => {
   if (edge.modified) return '#f44336'; // Highlight modified edges
-  return edge.label === 0 ? '#ffffff' : '#e74c3c'; // Original logic
+  return edge.label === 0 ? '#ffffff' : '#e74c3c'; // edgecolor
 };
 
 const getNodeColor = (nodeIndex) => {
