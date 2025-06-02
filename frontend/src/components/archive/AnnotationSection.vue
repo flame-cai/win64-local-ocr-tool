@@ -1,8 +1,8 @@
 <script setup>
 import { useRouter } from 'vue-router'
-import AnnotationPage from '@/components/AnnotationPage.vue'
+import AnnotationPage from '@/components/archive/AnnotationPage.vue'
 import { useAnnotationStore } from '@/stores/annotationStore'
-import CharacterPalette from './characterPalette.vue'
+import CharacterPalette from '../typing-utils/characterPalette.vue'
 
 const router = useRouter()
 const annotationStore = useAnnotationStore()
@@ -27,10 +27,6 @@ function uploadGroundTruth() {
   })
 }
 
-function switchToSegmentation() {
-  router.push({ name: 'segment' })
-}
-
 function switchToSemiAutoSegmentation() {
   router.push({ name: 'semi-segment' })
 }
@@ -48,7 +44,7 @@ function switchToSemiAutoSegmentation() {
   </div>
   <div class="mb-3">
     <button class="btn btn-primary me-2" @click="uploadGroundTruth">Fine-tune</button>
-    <button class="btn btn-warning me-2" @click="switchToSegmentation">Correct Image Segments</button>
+    <!-- <button class="btn btn-warning me-2" @click="switchToSegmentation">Correct Image Segments</button> -->
     <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Test Segmentation</button>
     <button class="btn btn-success me-2" @click="annotationStore.exportToTxt">Export</button>
     <CharacterPalette />

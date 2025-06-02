@@ -16,23 +16,18 @@ const router = createRouter({
         {
           path: '/annotation/upload',
           name: 'upload-manuscript',
-          component: () => import('../components/UploadForm.vue'),
+          component: () => import('../components/archive/UploadForm.vue'),
           alias: '/annotation',
         },
         {
           path: '/annotation/annotate',
           name: 'annotation-section',
-          component: () => import('../components/AnnotationSection.vue'),
-        },
-        {
-          path: '/annotation/segment',
-          name: 'segment',
-          component: () => import('../components/SegmentationSection.vue'),
+          component: () => import('../components/archive/AnnotationSection.vue'),
         },
         {
           path: '/annotation/semi-segment',
           name: 'semi-segment',
-          component: () => import('../components/SemiSegmentationSection.vue'),
+          component: () => import('../components/archive/SemiSegmentationSection.vue'),
         },
       ],
     },
@@ -50,12 +45,12 @@ const router = createRouter({
         },
         {
           path: '/new/img-2-txt',                
-          name: 'img-2-txt',                      // instead of this
+          name: 'img-2-txt',                      
           component: () => import('../components/new-IMG2TXT.vue'),
         },
         {
           path: '/new/semi-segment',             
-          name: 'new-semi-segment',               // go here
+          name: 'new-semi-segment',               
           component: () => import('../components/new-SemiSegmentationSection.vue'),
         }
       ],
@@ -67,9 +62,6 @@ const router = createRouter({
       name: 'uploaded-manuscripts',
       component: () => import('../views/UploadedManuscriptsView.vue'),
     },
-
-
-
 
   ],
 })

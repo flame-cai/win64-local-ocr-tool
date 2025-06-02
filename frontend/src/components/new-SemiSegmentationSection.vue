@@ -80,8 +80,8 @@
             :x2="scaleX(workingGraph.nodes[edge.target].x)"
             :y2="scaleY(workingGraph.nodes[edge.target].y)"
             :stroke="getEdgeColor(edge)"
-            :stroke-width="isEdgeSelected(edge) ? 3 : 1.5"
-            :stroke-opacity="0.7"
+            :stroke-width="isEdgeSelected(edge) ? 3 : 2.5"
+            :stroke-opacity="1"
             @click.stop="editMode && onEdgeClick(edge, $event)"
           />
           
@@ -92,7 +92,7 @@
             :cy="scaleY(node.y)"
             :r="getNodeRadius(nodeIndex)"
             :fill="getNodeColor(nodeIndex)"
-            :fill-opacity="0.7"
+            :fill-opacity="1"
             @click.stop="editMode && onNodeClick(nodeIndex, $event)"
           />
           
@@ -103,9 +103,9 @@
             :x2="tempEndPoint.x"
             :y2="tempEndPoint.y"
             stroke="#ff9500"
-            stroke-width="1.5"
+            stroke-width="2.5"
             stroke-dasharray="5,5"
-            stroke-opacity="0.7"
+            stroke-opacity="1"
           />
         </svg>
       </div>
@@ -382,7 +382,7 @@ const isEdgeSelected = (edge) => {
 
 const getEdgeColor = (edge) => {
   if (edge.modified) return '#f44336'; // Highlight modified edges
-  return edge.label === 0 ? '#42d4f4' : '#e74c3c'; // Original logic
+  return edge.label === 0 ? '#ffffff' : '#e74c3c'; // Original logic
 };
 
 const getNodeColor = (nodeIndex) => {
@@ -821,6 +821,7 @@ const saveModificationsAndStay = async () => {
   max-width: 100%; /* Ensures image is responsive within its container */
   max-height: 100%; /* Ensures image is responsive within its container */
   user-select: none; /* Prevent image selection */
+  opacity: 80%;
 }
 
 .placeholder-image {

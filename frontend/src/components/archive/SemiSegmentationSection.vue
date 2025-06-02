@@ -148,7 +148,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, reactive } from 'vue';
 import { useAnnotationStore } from '@/stores/annotationStore';
-import { generateLayoutGraph } from './layout-analysis-utils/LayoutGraphGenerator.js';  // Import the new utility function
+import { generateLayoutGraph } from '../layout-analysis-utils/LayoutGraphGenerator.js';  // Import the new utility function
 
 const handleKeydown = (e) => {
   if (!editMode.value) return;
@@ -575,7 +575,8 @@ const saveModifications = async () => {
     const request = {
       graph: workingGraph,
       modifications: modifications.value,
-      points: points.value.map(point => point.segment)
+      points: points.value.map(point => point.segment),
+      modelName: annotationStore.modelName
     };
     
     const response = await fetch(

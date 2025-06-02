@@ -5,7 +5,7 @@ import { RouterView } from 'vue-router'
 <template>
   <div class="annotationView-container">
     <header>
-      <h1>YoYo Tool</h1>
+      <h1>Historical OCR Tool</h1>
     </header>
     <RouterView />
   </div>

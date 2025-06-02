@@ -14,7 +14,7 @@ import gc
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-from annotator.segmentation.segment_old import segment_lines
+from annotator.segmentation.segment_old_method import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
 from annotator.segmentation.segment_graph import save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
 from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
@@ -192,10 +192,6 @@ def make_semi_segments(manuscript_name, page):
         
         # Parse request data
         request_data = request.json
-        model_name_from_request = request_data.get("modelName")
-        if not model_name_from_request:
-            current_app.logger.error("Model name not provided in POST /semi-segment request.")
-            return Response(json.dumps({"error": "Model name not provided"}), status=400, mimetype='application/json')
 
         # Extract graph data if available
         if 'graph' in request_data:
@@ -224,14 +220,20 @@ def make_semi_segments(manuscript_name, page):
         segmentLinesFromPointClusters(manuscript_name, page)
         current_app.logger.info(f"Line Segmentation complete with updated graph for {manuscript_name}/{page}.")
 
-        # NOW, PERFORM CHARACTER RECOGNITION FOR THIS PAGE
-        current_app.logger.info(f"Starting text recognition from segmented line images {manuscript_name}/{page} with model {model_name_from_request}.")
-        manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-        
-        recognized_line_data = recognise_single_page_characters(
-            manuscript_folder_path, model_name_from_request, manuscript_name, page
-        )
-        current_app.logger.info(f"Text recognition from segmented line images finished for {manuscript_name}/{page}.")
+
+        model_name_from_request = request_data.get("modelName")
+        if not model_name_from_request: # handling error of old version of the app
+            current_app.logger.error("Model name not provided in POST /semi-segment request.")
+            recognized_line_data = ''
+            # return Response(json.dumps({"error": "Model name not provided"}), status=400, mimetype='application/json')
+        else:
+            # NOW, PERFORM CHARACTER RECOGNITION FOR THIS PAGE
+            current_app.logger.info(f"Starting text recognition from segmented line images {manuscript_name}/{page} with model {model_name_from_request}.")
+            manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
+            recognized_line_data = recognise_single_page_characters(
+                manuscript_folder_path, model_name_from_request, manuscript_name, page
+            )
+            current_app.logger.info(f"Text recognition from segmented line images finished for {manuscript_name}/{page}.")
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -346,45 +348,3 @@ def annotate():
 
     return lines, 200
 
-
-
-
-# MANUAL LINE SEGMENTATION
-@bp.route("/segment/<string:manuscript_name>/<string:page>", methods=["GET"])
-def get_points(manuscript_name, page):
-    logging.info
-    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    try:
-        IMAGE_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg"
-        )
-        image = Image.open(IMAGE_FILEPATH)
-        width, height = image.size
-        response = {"dimensions": [width, height]}
-        POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_points.txt"
-        )
-        if not os.path.exists(POINTS_FILEPATH):
-            return {"error": "Page not found"}, 404
-        with open(POINTS_FILEPATH, "r") as f:
-            points = [row.split() for row in f.readlines()]
-        response["points"] = points
-        return response, 200
-
-    except Exception as e:
-        return {"error": str(e)}, 500
-
-@bp.route("/segment/<string:manuscript_name>/<string:page>", methods=["POST"])
-def make_segments(manuscript_name, page):
-    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    segments = request.get_json()
-    labels_file = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_labels.txt"
-    )
-
-    with open(labels_file, "w") as f:
-        f.write("\n".join(map(str, segments)))
-
-    segmentLinesFromPointClusters(manuscript_name, page)
-
-    return {"message": f"succesfully saved labels for page {page}"}, 200
