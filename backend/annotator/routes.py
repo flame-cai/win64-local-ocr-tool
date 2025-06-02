@@ -2,96 +2,70 @@ import os
 import threading
 
 from flask import Blueprint, request, send_from_directory, current_app, abort, send_file
+import base64
+from flask import Response
+import json
+import io
+
 from PIL import Image
 import torch
 import gc
-
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
 from annotator.segmentation.segment_old import segment_lines
 from annotator.segmentation.segment_from_point_clusters import segmentLinesFromPointClusters
 from annotator.segmentation.segment_graph import save_graph_for_gnn, load_graph_for_gnn, generate_labels_from_graph, images2points
 from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
 from annotator.finetune.finetune import finetune
 
-
-#importing GNN libraries
-
-import numpy as np
-import matplotlib.pyplot as plt
-import cv2
-import io
-import base64
-from flask import Response
-import json
-
-
-
 bp = Blueprint("main", __name__)
 
+# setting up logging
+import logging
+from pythonjsonlogger import jsonlogger
+# Create a logger instance
+logger = logging.getLogger("backend_routes_logger")
+logger.setLevel(logging.INFO)
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+# Attach formatter to handler, and handler to logger
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
 
-@bp.route("/")
+
+@bp.route("/", methods=["GET"])
 def hello():
     return "Sanskrit Manuscript Annotation Tool"
 
 
-@bp.route("/models")
+@bp.route("/models", methods=["GET"])
 def get_models():
+    logger.info("Getting Available text recogntion models")
     return os.listdir(os.path.join(current_app.config['DATA_PATH'], 'models', 'recognition'))
 
 
-@bp.route("/line-images/<manuscript_name>/<page>/<line>")
+@bp.route("/line-images/<manuscript_name>/<page>/<line>", methods=["GET"])
 def serve_line_image(manuscript_name, page, line):
+    logger.info(f"Getting line image ({line}) in  manuscript {manuscript_name},page {page}")
     # Build the folder and filename exactly how you want them
     base_dir   = current_app.config['DATA_PATH']
     folder     = os.path.join(base_dir, 'manuscripts', manuscript_name, 'lines', page)
-    filename   = f"{line}.jpg"   # or '.png' if that's what you have
+    filename   = f"{line}.jpg" 
 
     # Resolve to an absolute path
     absolute_path = os.path.abspath(os.path.join(folder, filename))
-    print("Will serve:", absolute_path, "Exists?", os.path.exists(absolute_path))
-
+    exists = os.path.exists(absolute_path)
+    logger.info("Will serve file", extra={"absolute_path": absolute_path, "exists": exists})
     # If it’s not on disk, 404
     if not os.path.exists(absolute_path):
+        logger.error(f"Line image not found at path {absolute_path}")
         abort(404)
 
-    # Send it directly
     return send_file(absolute_path, mimetype='image/jpeg')
 
 
-
-
-
-@bp.route("/upload-manuscript", methods=["POST"])
-def annotate():
-    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    uploaded_files = request.files
-    manuscript_name = request.form["manuscript_name"]
-    model = request.form["model"]
-    folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-    leaves_folder_path = os.path.join(folder_path, "leaves")
-
-    try:
-        os.makedirs(leaves_folder_path, exist_ok=True)
-    except Exception as e:
-        print(f"An error occured: {e}")
-
-    for file in request.files:
-        filename = request.files[file].filename
-        request.files[file].save(os.path.join(leaves_folder_path, filename))
-
-    print("image2heatmap2points")
-    images2points(os.path.join(folder_path, "leaves"))
-    print("now segmenting lines the old way")
-    segment_lines(os.path.join(folder_path, "leaves"))
-    lines = recognise_characters(folder_path, model, manuscript_name)
-    torch.cuda.empty_cache()
-    gc.collect()
-    # find_gpu_tensors()
-
-    return lines, 200
-
-
 def finetune_context(data, app_context):
-    # app_context.push()
     with app_context:
         finetune(data)
 
@@ -152,7 +126,6 @@ def get_points(manuscript_name, page):
 
 
 # FULLY MANUAL LABELING
-
 @bp.route("/segment/<string:manuscript_name>/<string:page>", methods=["POST"])
 def make_segments(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
@@ -415,3 +388,40 @@ def save_graph(manuscript_name, page):
         print(f"Error saving graph: {str(e)}")
         return {"error": str(e)}, 500
 
+
+
+
+
+
+
+
+
+# ALL OLD FUNCTIONS BELOW
+@bp.route("/upload-manuscript", methods=["POST"])
+def annotate():
+    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
+    uploaded_files = request.files
+    manuscript_name = request.form["manuscript_name"]
+    model = request.form["model"]
+    folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
+    leaves_folder_path = os.path.join(folder_path, "leaves")
+
+    try:
+        os.makedirs(leaves_folder_path, exist_ok=True)
+    except Exception as e:
+        print(f"An error occured: {e}")
+
+    for file in request.files:
+        filename = request.files[file].filename
+        request.files[file].save(os.path.join(leaves_folder_path, filename))
+
+    print("image2heatmap2points")
+    images2points(os.path.join(folder_path, "leaves"))
+    print("now segmenting lines the old way")
+    segment_lines(os.path.join(folder_path, "leaves"))
+    lines = recognise_characters(folder_path, model, manuscript_name)
+    torch.cuda.empty_cache()
+    gc.collect()
+    # find_gpu_tensors()
+
+    return lines, 200
