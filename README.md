@@ -36,10 +36,10 @@ The application uses two AI model: [CRAFT](https://github.com/clovaai/CRAFT-pyto
 ### Setup the backend
 Please follow the following steps to create the backend conda environment:
 ```
-# go to the backend folder
+# open terminal (or miniconda prompt) and go to the backend folder
 cd backend
 
-# create the conda environment 'san-ocr-tool'
+# create the conda environment
 conda env create -f environment.yml
 
 # activate the conda environment named 'ocr-tool'
