@@ -5,7 +5,6 @@ backend/saved_models
 backend/.env
 backend/instance
 
-test.py
 craft_mlt_25k.pth
 devanagari.pth
 
