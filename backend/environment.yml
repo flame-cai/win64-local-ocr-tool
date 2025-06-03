@@ -31,4 +31,8 @@ dependencies:
   - lmdb
   - natsort
   - pyyaml
-
+  - pip:
+      - lmdb
+      - nltk
+      - python-json-logger
+      - regex

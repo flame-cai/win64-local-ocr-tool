@@ -62,7 +62,7 @@ def new_process_manuscript():
 
     for file_key in request.files:
         uploaded_file = request.files[file_key]
-        original_filename = secure_filename(uploaded_file.filename)
+        original_filename = uploaded_file.filename
         base_filename = os.path.splitext(original_filename)[0]
 
         # Open uploaded image file as a PIL image
