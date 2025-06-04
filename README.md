@@ -47,6 +47,9 @@ conda activate ocr-tool
 
 # run the backend
 flask run --debug
+
+# OR run the backend using:  
+python app.py
 ```
 
 ### Setup the frontend
