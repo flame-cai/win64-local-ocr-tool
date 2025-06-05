@@ -73,8 +73,7 @@ npm run dev
 - [ ] Cuda profiling 
 - [ ] UX zoom - maintain aspect ratio
 - [ ] Per line iterative finetuning
-- [ ] benefits of "overdoing" finetuning [arxiv.org/pdf/2408.04809](https://arxiv.org/pdf/2408.04809)
-
+- [ ] benefits of "overdoing" finetuning: [Ref1](https://arxiv.org/pdf/2408.04809) [Ref2](https://imtiazhumayun.github.io/grokking/)
 - [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
 - [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
 
