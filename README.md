@@ -66,7 +66,16 @@ npm run dev
 ```
 
 ## TODO
-- integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
-- finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
+
+- [ ] record location of the segmented line on map as meta data..
+- [ ] Integrate V2 English model
+- [ ] Multi-layerd line segmentation based on font size
+- [ ] Cuda profiling 
+- [ ] UX zoom - maintain aspect ratio
+- [ ] Per line iterative finetuning
+- [ ] benefits of "overdoing" finetuning [arxiv.org/pdf/2408.04809](https://arxiv.org/pdf/2408.04809)
+
+- [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
+- [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
 
  
