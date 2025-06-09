@@ -9,10 +9,11 @@ from scipy.ndimage import label
 
 from annotator.segmentation.craft import CRAFT, copyStateDict, detect
 from annotator.segmentation.utils import load_images_from_folder
+from scipy.ndimage import maximum_filter, label, find_objects, center_of_mass
 
 
 # ------------------heatmap to point cloud---------
-# TODO get size (font size) of blob along with the X,Y co-ordinates
+
 def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
     """
     Convert a 2D heatmap to a point cloud by identifying local maxima and generating
@@ -30,7 +31,10 @@ def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
     Returns:
     --------
     points : numpy.ndarray
+        # TODO Each point represent a character. Now we want to get size (font size) along with the X,Y co-ordinates. To do this, caluclate a search window around each point dynamically based on the locations of the points.
         Array of shape (N, 2) containing the generated points
+        #TODO add size of the blob as a third dimension. 
+
     """
     # Normalize heatmap to [0, 1]
     heatmap_norm = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
@@ -55,7 +59,6 @@ def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
     return np.array(points)
 
 
-
 def images2points(folder_path):
     print(folder_path)
     #m_name = folder_path.split('/')[-2]
@@ -74,14 +77,14 @@ def images2points(folder_path):
 
 
     out_images=[]
-    points = []
+    points_data = []
     for image,_filename in zip(inp_images, file_names):
         # get region score and affinity score
         region_score, affinity_score = detect(image,detector, device)
         assert region_score.shape == affinity_score.shape
-        points_twoD = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
+        _points = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
 
-        points.append(points_twoD)
+        points_data.append(_points)
         out_images.append(np.copy(region_score))
 
 
@@ -94,8 +97,10 @@ def images2points(folder_path):
     for _img,_filename in zip(out_images,file_names):
         cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
         
-    for points_twoD,_filename in zip(points,file_names):
-        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_twoD, fmt='%d')
+    for points_data,_filename in zip(points_data,file_names):
+        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_data[:,:2], fmt='%d')
+        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_point_features.txt', points_data, fmt='%d')
+
 
         # clear GPU memory
     del detector
