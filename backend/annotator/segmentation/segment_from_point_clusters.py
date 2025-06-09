@@ -52,8 +52,6 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path):
     sub-boxes such that each sub-box contains points of only one label. The result is visualized 
     by overlaying both the bounding boxes and the labeled points on the image.
     """
-    
-
     # Convert image to color if it is grayscale.
     if len(image.shape) == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -340,13 +338,11 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_points.txt")
     LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_labels.txt")
 
+    # Check if the manuscript lines directory exists
     if os.path.exists(os.path.join(BASE_PATH, manuscript_name, "lines", page)) == False:
         os.makedirs(os.path.join(BASE_PATH, manuscript_name, "lines", page))
         print("making the lines directory")
-
     LINES_DIR = os.path.join(BASE_PATH, manuscript_name, "lines", page)
-
-    binarize_threshold = 100
 
     image = loadImage(IMAGE_FILEPATH)
     det = loadImage(HEATMAP_FILEPATH)
@@ -361,7 +357,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     #print(image.shape) this is x2 scale
     img2 = cv2.cvtColor(cv2.resize(image, det.shape[::-1]), cv2.COLOR_BGR2GRAY) 
 
-    print("okay we here")
+    binarize_threshold = 100
     bounding_boxes = gen_bounding_boxes(det, binarize_threshold)
     labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_points, filtered_labels, img2, output_path=os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}.jpg"))
 
