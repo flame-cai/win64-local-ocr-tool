@@ -19,32 +19,6 @@ const textboxClassObject = reactive({
   'is-valid': false,
 })
 
-// PROBLEM AREA: props.line_data.predicted_label might not exist if line_data is empty
-// (e.g., if recognitions haven't happened yet for this line).
-// This can happen if AnnotationPage renders an AnnotationBlock for a line_name
-// that exists as a key in props.data, but its value (line_data) is an empty object {}.
-//
-// The current setup on Page A:
-// annotationStore.recognitions[currentManuscriptNameFromForm][pageId] = {}
-// This means props.data on AnnotationPage will be an object of pageIds, and the value for each pageId is {}.
-// So, when AnnotationPage does v-for over this, line_data will be {} initially.
-//
-// Then on Page C (saveModifications):
-// annotationStore.recognitions[manuscriptName.value][currentPage.value] = responseData.lines;
-// This REPLACES the {} with actual line data.
-//
-// So, the scenario where line_data.predicted_label is undefined is less likely
-// IF AnnotationPage only renders blocks when props.data (which is a page's lines) actually has line entries.
-// Your AnnotationPage.vue: `v-for="(line_data, line_name) in props.data"`
-// If props.data is initially `{"page1": {}}` from Page A, and then becomes `{"page1": {"line_001": {...}, "line_002": {...}}}` after Page C's save,
-// then the v-for in AnnotationPage will only run when `props.data` (which is `page_data`) has actual line entries.
-// So `props.line_data` inside AnnotationBlock should always be a populated object with `predicted_label`.
-//
-// Let's assume props.line_data.predicted_label WILL exist if this component is rendered.
-// If it could be undefined, we'd need to add checks:
-// const initialPredictedLabel = computed(() => props.line_data?.predicted_label || '');
-// const devanagari = ref(initialPredictedLabel.value);
-// const hk = ref(Sanscript.t(initialPredictedLabel.value, 'devanagari', 'hk'));
 
 const devanagari = ref(props.line_data.predicted_label)
 const hk = ref(Sanscript.t(props.line_data.predicted_label, 'devanagari', 'hk'))

@@ -17,6 +17,21 @@ import {
     const input = event.target;
     const cursorPosition = input.selectionStart;
     const currentValue = input.value;
+
+
+    // Helper to check if a character is a "bare" Devanagari consonant
+    // (not a matra, not halant, not modifier, etc., just the consonant character itself)
+    const isBareDevanagariConsonant = (char) => {
+        if (!char || char.length !== 1) return false; // Must be a single character
+        const cp = char.charCodeAt(0);
+        // Devanagari Unicode block range for consonants:
+        // Main consonants: U+0915 (क) to U+0939 (ह)
+        // Additional consonants (e.g., ळ, or nukta forms like क़ if they are single codepoints): U+0958 to U+095F
+        if ((cp >= 0x0915 && cp <= 0x0939) || (cp >= 0x0958 && cp <= 0x095F)) {
+            return true;
+        }
+        return false;
+    };
   
     // --- Basic Filtering ---
     if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -199,6 +214,44 @@ import {
         return;
     }
   
+    // --- Custom 'a' Vowel Handling (Schwa Deletion & Matra Application) ---
+    // Define which keys trigger schwa deletion (C+H+ZWNJ -> C)
+    const isSchwaDeletionKey = (effectiveKey === 'a' || effectiveKey === 'A');
+
+    // Define which keys trigger 'aa' matra (C -> C+ ा) and what that matra is.
+    let aaMatra = null;
+    if (effectiveKey === 'a' || effectiveKey === 'A') {
+        aaMatra = dependentVowelMap['a']; // Should be 'ा'
+    } else if (effectiveKey === 'aa' || effectiveKey === 'AA') { // If you have 'aa'/'AA' mapping
+        aaMatra = dependentVowelMap['aa']; // Should also be 'ा'
+    }
+    // Add more else if for other 'a'-like keys if necessary
+
+    // 1. Handle Schwa Deletion: C + Halant + ZWNJ + 'a'/'A'  --->  C
+    if (isSchwaDeletionKey && cursorPosition >= 2 && charM1 === ZWNJ && charM2 === HALANT) {
+        // Context: charM3 (Base Consonant) + charM2 (Halant) + charM1 (ZWNJ)
+        // Action: Pressing 'a' or 'A' removes Halant + ZWNJ, leaving just charM3.
+        event.preventDefault();
+        replacePreviousChars(input, devanagariRef, 2, '', cursorPosition); // Removes the last 2 chars (Halant + ZWNJ)
+        console.log(`Schwa Deletion by '${effectiveKey}': Removed H+ZWNJ after '${charM3}' to form full consonant.`);
+        lastEffectiveKey = effectiveKey; // Update last key
+        return; // Crucial: exit after handling
+    }
+
+    // 2. Handle 'aa' Matra Application: C + 'a'/'A'/'aa'/'AA'  --->  C + ा
+    // This executes if the schwa deletion didn't happen (e.g., cursor is after a full consonant).
+    if (aaMatra === 'ा' && charM1 && isBareDevanagariConsonant(charM1)) {
+        // Context: charM1 is a bare consonant (e.g., 'क', 'ख')
+        // Action: Pressing an 'a'-like key appends the 'ा' matra.
+        event.preventDefault();
+        replacePreviousChars(input, devanagariRef, 1, charM1 + aaMatra, cursorPosition); // Replaces charM1 with charM1 + 'ा'
+        console.log(`'${effectiveKey}' applied Matra '${aaMatra}' to bare consonant '${charM1}'.`);
+        lastEffectiveKey = effectiveKey; // Update last key
+        return; // Crucial: exit after handling
+    }
+    // --- END Custom 'a' Vowel Handling ---
+
+
     // --- Single Anusvara / Visarga ('M', 'H') Application ---
     if (effectiveKey === 'M' || effectiveKey === 'H') {
         event.preventDefault();
