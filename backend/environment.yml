@@ -28,7 +28,6 @@ dependencies:
   - python-dotenv
   - packaging
   - six
-  - lmdb
   - natsort
   - pyyaml
   - pip:

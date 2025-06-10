@@ -102,7 +102,7 @@ def images2points(folder_path):
         np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_point_features.txt', points_data, fmt='%d')
 
 
-        # clear GPU memory
+    # clear GPU memory  
     del detector
     del _detector
     torch.cuda.empty_cache()

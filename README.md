@@ -28,9 +28,9 @@ cd win64-local-ocr-tool
 
 The application uses two AI models: [CRAFT](https://github.com/clovaai/CRAFT-pytorch) and [EasyOCR's](https://github.com/JaidedAI) Devanagari pretrained model. CRAFT detects the locations of the characters in a page, which is used to crop out text-line-images from pages with diverse layouts. The Devanagari pretrained model is then used to detect the text-content from the cropped text-line-images, and can also be fine-tuned for a specific manuscript. 
 
-- Download craft_mlt_25k.pth from [here](https://huggingface.co/amitesh863/craft/resolve/main/craft_mlt_25k.pth?download=true). Put this file in the `backend/instance/models/segmentation/` folder. You will need to create this folder.
+- Download craft_mlt_25k.pth from [here](https://huggingface.co/amitesh863/craft/resolve/main/craft_mlt_25k.pth?download=true). Put this file in the `backend/instance/models/segmentation/` folder. 
 
-- Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip). Make sure to unzip the devanagari.zip file to get devanagari.pth file. Put this file in the `backend/instance/models/recognition/` folder. You will need to create this folder too.
+- Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip). Make sure to unzip the devanagari.zip file to get devanagari.pth file. Put this file in the `backend/instance/models/recognition/` folder. 
 
 
 ### Setup the backend
