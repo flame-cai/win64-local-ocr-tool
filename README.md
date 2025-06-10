@@ -1,5 +1,5 @@
 # OCR Tool for Historical Devanagari Manuscripts
-[Kartik Chincholikar ](https://kartikchincholikar.github.io/), [Shagun Dwivedi ](https://shagundwivedi.github.io/), [Bharath Valaboju](https://Bharath314.github.io/)
+[Kartik Chincholikar ](https://kartikchincholikar.github.io/), [Shagun Dwivedi ](https://shagundwivedi.github.io/), [Bharath Valaboju](https://Bharath314.github.io/), [Kaushik Gopalan](https://www.flame.edu.in/faculty/kaushik-gopalan)
 <!-- **[Paper](https://arxiv.org/abs/2502.12534), [Project Page](https://theialab.github.io/noksr/)** -->
 <!-- ![noksr](assets/Teaser.png) -->
 
