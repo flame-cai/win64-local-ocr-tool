@@ -14,7 +14,7 @@ Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
 
 ![Demo](demo.gif)
 
-**Step 1**: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky edge-case page layouts. **Step 2**: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model*
+**Step 1**: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky edge-case page layouts. **Step 2**: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model
 
 ## News    
 
