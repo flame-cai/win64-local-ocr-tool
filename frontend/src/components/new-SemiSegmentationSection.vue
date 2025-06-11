@@ -1,7 +1,7 @@
 <template>
   <div class="manuscript-viewer">
     <div class="toolbar">
-      <h9>{{ manuscriptName }} - Page {{ currentPage }}</h9>
+      <h10>{{ manuscriptName }} - Page {{ currentPage }}</h10>
       <div class="controls">
         <button @click="previousPage" :disabled="loading || isProcessingSave">Previous</button>
         <button @click="nextPage" :disabled="loading || isProcessingSave">Next</button>
@@ -428,18 +428,54 @@ const previousPage = () => confirmAndNavigate(() => annotationStore.previousPage
 // --- New Hover Interaction Logic ---
 
 const handleGlobalKeyDown = (e) => {
-  if (!editMode.value || e.repeat) return; // Only in edit mode, ignore repeats for initial press
-
-  if (e.key.toLowerCase() === 'd') {
-    e.preventDefault();
-    isDKeyPressed.value = true;
-    resetSelection(); // Clear selection when starting hover-delete
+  // Hotkey for toggling editMode
+  if (e.key.toLowerCase() === 'e') {
+    if (isProcessingSave.value) {
+      console.log("Edit mode toggle ('e') hotkey disabled: processing save.");
+      return; 
+    }
+    e.preventDefault(); 
+    editMode.value = !editMode.value;
+    console.log(`Edit mode toggled via 'e' key to: ${editMode.value}`);
+    return;
   }
-  if (e.key.toLowerCase() === 'a') {
-    e.preventDefault();
-    isAKeyPressed.value = true;
-    hoveredNodesForMST.clear();
-    resetSelection(); // Clear selection when starting hover-add
+
+  // Hotkey for "Annotate Text" (goToIMG2TXTPage)
+  if (e.key.toLowerCase() === 't') {
+    // Check conditions similar to the button's :disabled attribute
+    if (loading.value || isProcessingSave.value) {
+      console.log("Annotate Text ('t') hotkey disabled: loading or processing save.");
+      return; 
+    }
+    e.preventDefault(); 
+    console.log("Triggering Annotate Text via 't' key.");
+    goToIMG2TXTPage(); // Call the existing function
+    return; 
+  }
+
+  // The rest of the hotkeys ('a', 'd') should only work if editMode is active
+  if (!editMode.value || e.repeat) {
+    // If not in edit mode or it's a repeat, don't process 'a' or 'd'
+    // but allow other global hotkeys (like 'e' or 't' if they weren't matched above)
+    // For 'a' and 'd', they specifically need editMode.
+    if (e.key.toLowerCase() === 'a' || e.key.toLowerCase() === 'd') {
+        return;
+    }
+  }
+  
+  // Specific edit mode hotkeys
+  if (editMode.value && !e.repeat) { // Ensure edit mode is on and not a repeat for these
+    if (e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      isDKeyPressed.value = true;
+      resetSelection(); 
+    }
+    if (e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      isAKeyPressed.value = true;
+      hoveredNodesForMST.clear();
+      resetSelection(); 
+    }
   }
 };
 
@@ -763,7 +799,7 @@ const saveModificationsAndStay = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px;
+  padding: 1px;
   background-color: #f5f5f5;
   border-bottom: 1px solid #ddd;
   flex-shrink: 0; /* Toolbar should not shrink */
@@ -772,7 +808,7 @@ const saveModificationsAndStay = async () => {
 .controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 25px;
 }
 
 .toolbar button:disabled,
@@ -920,7 +956,7 @@ const saveModificationsAndStay = async () => {
 }
 
 button {
-  padding: 6px 12px;
+  padding: 4px 12px;
   border-radius: 4px;
   border: 1px solid #ccc;
   background-color: #fff;
@@ -992,5 +1028,14 @@ button:disabled {
 }
 .undo-button:hover:not(:disabled) {
   background-color: #fff9c4; /* Darker yellow hover */
+}
+
+.edit-instructions {
+  margin-bottom: 10px;
+  font-size: 0.5eeeeem; /* Slightly smaller */
+  color: #555;
+}
+.edit-instructions p {
+  margin: 5px 0; /* Spacing for instruction paragraphs */
 }
 </style>

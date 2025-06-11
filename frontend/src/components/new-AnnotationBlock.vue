@@ -107,8 +107,8 @@ onMounted(() => {
       type="text" 
       :class="textboxClassObject" 
     />
-    <button class="btn btn-primary mb-2 me-2" @click="toggleHK">Roman</button>
-    <button class="btn btn-success mb-2 me-2" @click="save">Save</button>
+    <button class="btn mb-2 me-2 small-grey-btn" @click="toggleHK">Roman</button>
+    <button class="btn mb-2 me-2 small-grey-btn" @click="save">Save</button>
   </div>
   <input v-model="hk" type="text" class="form-control mb-2" v-if="isHK" />
 </template>
@@ -126,5 +126,13 @@ onMounted(() => {
 .devanagari-textbox {
   flex-grow: 1;
   display: inline-block;
+}
+
+.small-grey-btn {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #6c757d; /* Bootstrap's secondary/grey color */
+  border: none;
+  color: #fff;
 }
 </style>
