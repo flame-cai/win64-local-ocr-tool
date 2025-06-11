@@ -12,7 +12,9 @@ To recognise text content from the segmented text-line-images, we use a pre-trai
 Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
 
 
-![Demo](demo.webm)
+<video src="demo.webm" width="600" autoplay loop muted playsinline>
+  Your browser does not support the video tag.
+</video>
 
 *Step 1: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky layouts. Step 2: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model*
 
