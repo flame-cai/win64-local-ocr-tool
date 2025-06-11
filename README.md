@@ -3,10 +3,6 @@
 <!-- **[Paper](https://arxiv.org/abs/2502.12534), [Project Page](https://theialab.github.io/noksr/)** -->
 <!-- ![noksr](assets/Teaser.png) -->
 
-![Demo](demo.gif)
-
-*Step 1: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky layouts. Step 2: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model*
-
 Digitizing text from historical manuscripts yields historians multiple benefits. The digitization process consists of three steps: text-line-image segmentation, text recognition from the text-line-images (and post-correction). 
 
 This tool enables segmenting text-line-images from pages with diverse layouts. It represents text-lines as graphs, with characters as the nodes, and with edges connecting each character of a text-line to it's previous and next neighbour. In other words, we use nodes and edges as units of comparison and data collection instead of dense pixel-level metrics. This enables easier layout annotation, and improved performance compared to existing methods (as tested on a set of 15 pages with layouts of varying complexity, ranging from simple single-column and double-column layouts to layouts with pictures, footnotes, tables, interlinear writing, marginalia, text bleeding, staining, coloring, and irregular font sizes)
@@ -14,6 +10,11 @@ This tool enables segmenting text-line-images from pages with diverse layouts. I
 To recognise text content from the segmented text-line-images, we use a pre-trained text recognition model for the Devanāgarī script. The tools enables fine-tuning of the pre-trained model on specific manuscripts, which results in the model's predictions getting progressively better with more annotated data, thus also making the subsequent annotation easier - similar to active learning.
 
 Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
+
+
+![Demo](demo.webm)
+
+*Step 1: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky layouts. Step 2: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model*
 
 ## News    
 
