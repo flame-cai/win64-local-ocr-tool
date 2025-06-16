@@ -194,15 +194,15 @@ def images2points(folder_path):
     if os.path.exists(f'instance/manuscripts/{m_name}/heatmaps') == False:
         os.makedirs(f'instance/manuscripts/{m_name}/heatmaps')
 
-    if os.path.exists(f'instance/manuscripts/{m_name}/points-2D') == False:
-        os.makedirs(f'instance/manuscripts/{m_name}/points-2D')
+    if os.path.exists(f'instance/manuscripts/{m_name}/graph-data') == False:
+        os.makedirs(f'instance/manuscripts/{m_name}/graph-data')
 
     for _img,_filename in zip(out_images,file_names):
         cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
         
     for points_data,_filename in zip(points_data,file_names):
-        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_points.txt', points_data[:,:2], fmt='%d')
-        np.savetxt(f'instance/manuscripts/{m_name}/points-2D/{os.path.splitext(_filename)[0]}_point_features.txt', points_data, fmt='%d')
+        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_points.txt', points_data[:,:2], fmt='%d')
+        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_point_features.txt', points_data, fmt='%d')
 
 
     # clear GPU memory  
@@ -268,9 +268,9 @@ def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn
     
     # Save PyTorch Geometric data
     if not update:
-        torch_path = os.path.join(output_dir, f"{manuscript_name}_page{page_number}_graph.pt")
+        torch_path = os.path.join(output_dir, f"{page_number}_graph.pt")
     else:
-        torch_path = os.path.join(output_dir, f"{manuscript_name}_page{page_number}_graph_updated.pt")
+        torch_path = os.path.join(output_dir, f"{page_number}_graph_updated.pt")
     torch.save(data, torch_path)
     
     # Also save as JSON for compatibility with other frameworks
@@ -286,14 +286,13 @@ def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn
         }
     }
     
-    json_path = os.path.join(output_dir, f"{manuscript_name}_page{page_number}_graph.json")
+    json_path = os.path.join(output_dir, f"{page_number}_graph.json")
     with open(json_path, 'w') as f:
         json.dump(json_data, f, indent=2)
     
     return torch_path
 
-def load_graph_for_gnn(manuscript_name,
-                       page_number,
+def load_graph_for_gnn(page_number,
                        input_dir='gnn_graphs',
                        update=False):
     """
@@ -313,7 +312,7 @@ def load_graph_for_gnn(manuscript_name,
     """
     # Choose filename suffix based on update flag
     suffix = "_graph_updated.pt" if update else "_graph.pt"
-    filename = f"{manuscript_name}_page{page_number}{suffix}"
+    filename = f"{page_number}{suffix}"
     full_path = os.path.join(input_dir, filename)
     
     if not os.path.exists(full_path):

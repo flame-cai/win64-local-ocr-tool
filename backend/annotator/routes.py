@@ -96,10 +96,10 @@ def get_points_and_graph(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_points.txt"
+        MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_points.txt"
     )
     GRAPH_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "points-2D"
+        MANUSCRIPTS_PATH, manuscript_name, "graph-data"
     )
     try:
         image = plt.imread(IMAGE_FILEPATH)
@@ -130,12 +130,11 @@ def get_points_and_graph(manuscript_name, page):
         response["points"] = points
 
         # If graph already exist before, load it, else create a new graph in frontend
-        graph_file_name = f"{manuscript_name}_page{page}_graph_updated.pt"
+        graph_file_name = f"{page}_graph_updated.pt"
         full_file_path = os.path.join(GRAPH_FILEPATH, graph_file_name)
         # Check if the file exists and load it
         if os.path.exists(full_file_path):
             graph_data = load_graph_for_gnn(
-                manuscript_name=manuscript_name,
                 page_number=page,
                 input_dir=GRAPH_FILEPATH,
                 update=True  # we are loading previously updated graph
@@ -164,7 +163,7 @@ def save_graph(manuscript_name, page):
             return {"error": "No graph data provided"}, 400
         
         GRAPH_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D"
+            MANUSCRIPTS_PATH, manuscript_name, "graph-data"
         )
         
         # Save the graph using existing save function
@@ -184,10 +183,10 @@ def make_semi_segments(manuscript_name, page):
     try:
         MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
         POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D", f"{page}_labels.txt"
+            MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_labels.txt"
         )
         GRAPH_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "points-2D"
+            MANUSCRIPTS_PATH, manuscript_name, "graph-data"
         )
         
         # Parse request data
@@ -211,7 +210,7 @@ def make_semi_segments(manuscript_name, page):
             
             # Also save the modifications log if present
             if 'modifications' in request_data:
-                modifications_path = os.path.join(GRAPH_FILEPATH, f"{manuscript_name}_page{page}_modifications.json")
+                modifications_path = os.path.join(GRAPH_FILEPATH, f"{page}_modifications.json")
                 with open(modifications_path, 'w') as f:
                     json.dump(request_data['modifications'], f, indent=2)
         
