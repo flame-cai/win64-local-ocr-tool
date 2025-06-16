@@ -5,58 +5,161 @@ from torch_geometric.data import Data
 import json
 import cv2
 from scipy.ndimage import maximum_filter
+
 from scipy.ndimage import label
 
 from annotator.segmentation.craft import CRAFT, copyStateDict, detect
 from annotator.segmentation.utils import load_images_from_folder
 from scipy.ndimage import maximum_filter, label, find_objects, center_of_mass
+from skimage.draw import circle_perimeter
 
 
 # ------------------heatmap to point cloud---------
 
-def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
+# def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=10):
+#     """
+#     Convert a 2D heatmap to a point cloud by identifying local maxima and generating
+#     points with density proportional to the heatmap intensity.
+    
+#     Parameters:
+#     -----------
+#     heatmap : numpy.ndarray
+#         2D array representing the heatmap
+#     min_peak_value : float
+#         Minimum value for a peak to be considered (normalized between 0 and 1)
+#     min_distance : int
+#         Minimum distance between peaks in pixels
+        
+#     Returns:
+#     --------
+#     points : numpy.ndarray
+#         # TODO Each point represent a character. Now we want to get size (font size) along with the X,Y co-ordinates. To do this, caluclate a search window around each point dynamically based on the locations of the points.
+#         Array of shape (N, 2) containing the generated points
+#         #TODO add size of the blob as a third dimension. 
+
+#     """
+#     # Normalize heatmap to [0, 1]
+#     heatmap_norm = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
+    
+#     # Find local maxima
+#     local_max = maximum_filter(heatmap_norm, size=min_distance)
+#     peaks = (heatmap_norm == local_max) & (heatmap_norm > min_peak_value)
+    
+#     # Label connected components
+#     labeled_peaks, num_peaks = label(peaks)
+    
+#     points = []
+    
+#     # For each peak, generate points
+#     height = heatmap.shape[0]  # Get the height of the heatmap
+#     for peak_idx in range(1, num_peaks + 1):
+#         # Get peak location
+#         peak_y, peak_x = np.where(labeled_peaks == peak_idx)[0][0], np.where(labeled_peaks == peak_idx)[1][0]
+#         points.append([peak_x, peak_y])
+#         #points.append([peak_x, height - 1 - peak_y])  # This line is modified
+
+#     return np.array(points)
+
+
+def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=5, max_growth_radius=50):
     """
-    Convert a 2D heatmap to a point cloud by identifying local maxima and generating
-    points with density proportional to the heatmap intensity.
+    Convert a 2D heatmap to a point cloud (X, Y, Radius) by identifying local maxima
+    and estimating a radius for each by growing a circle as long as the heatmap
+    intensity along the circumference is decreasing.
     
     Parameters:
     -----------
     heatmap : numpy.ndarray
-        2D array representing the heatmap
+        2D array representing the heatmap.
     min_peak_value : float
-        Minimum value for a peak to be considered (normalized between 0 and 1)
+        Minimum normalized value for a peak to be considered (normalized between 0 and 1).
+        Peaks must have an intensity strictly greater than this value.
     min_distance : int
-        Minimum distance between peaks in pixels
+        Minimum distance between peaks in pixels. Used for `maximum_filter`.
+    max_growth_radius : int, optional
+        Maximum radius the circle is allowed to grow. If None, it defaults to
+        half the minimum dimension of the heatmap.
         
     Returns:
     --------
-    points : numpy.ndarray
-        # TODO Each point represent a character. Now we want to get size (font size) along with the X,Y co-ordinates. To do this, caluclate a search window around each point dynamically based on the locations of the points.
-        Array of shape (N, 2) containing the generated points
-        #TODO add size of the blob as a third dimension. 
-
+    points_with_radius : numpy.ndarray
+        Array of shape (N, 3) where N is the number of detected characters.
+        Each row contains [Peak_X, Peak_Y, Estimated_Radius].
+        Peak_X, Peak_Y are from the original peak detection.
+        Estimated_Radius is the radius of the largest circle around the peak
+        for which the average intensity on its circumference was still decreasing.
     """
-    # Normalize heatmap to [0, 1]
-    heatmap_norm = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
-    
-    # Find local maxima
-    local_max = maximum_filter(heatmap_norm, size=min_distance)
-    peaks = (heatmap_norm == local_max) & (heatmap_norm > min_peak_value)
-    
-    # Label connected components
-    labeled_peaks, num_peaks = label(peaks)
-    
-    points = []
-    
-    # For each peak, generate points
-    height = heatmap.shape[0]  # Get the height of the heatmap
-    for peak_idx in range(1, num_peaks + 1):
-        # Get peak location
-        peak_y, peak_x = np.where(labeled_peaks == peak_idx)[0][0], np.where(labeled_peaks == peak_idx)[1][0]
-        points.append([peak_x, peak_y])
-        #points.append([peak_x, height - 1 - peak_y])  # This line is modified
+    if heatmap.size == 0:
+        return np.empty((0, 3), dtype=np.float64)
 
-    return np.array(points)
+    h_min, h_max = heatmap.min(), heatmap.max()
+    if h_max == h_min: # Handle flat heatmap
+        return np.empty((0, 3), dtype=np.float64)
+        
+    # 1. Normalize heatmap to [0, 1]
+    heatmap_norm = (heatmap - h_min) / (h_max - h_min)
+    
+    # 2. Find local maxima (Original logic)
+    local_max_values = maximum_filter(heatmap_norm, size=min_distance)
+    peaks_mask = (heatmap_norm == local_max_values) & (heatmap_norm > min_peak_value)
+    
+    # 3. Label connected components of these peak pixels
+    labeled_individual_peaks, num_individual_peaks = label(peaks_mask)
+    
+    if num_individual_peaks == 0:
+        return np.empty((0, 3), dtype=np.float64)
+
+    points_and_radius = []
+    
+    H, W = heatmap_norm.shape
+    if max_growth_radius is None:
+        max_r_search = min(H, W) // 2
+    else:
+        max_r_search = max_growth_radius
+
+    # 4. For each peak, grow a circle to estimate radius
+    for peak_idx in range(1, num_individual_peaks + 1):
+        peak_loc_y_arr, peak_loc_x_arr = np.where(labeled_individual_peaks == peak_idx)
+        
+        if peak_loc_y_arr.size == 0:
+            continue
+            
+        peak_y, peak_x = peak_loc_y_arr[0], peak_loc_x_arr[0] # Use the first pixel of the peak area
+
+        current_peak_intensity = heatmap_norm[peak_y, peak_x]
+        last_ring_avg_intensity = current_peak_intensity
+        estimated_radius = 0 # Radius 0 is the peak itself
+
+        for r_test in range(1, max_r_search + 1):
+            # Get coordinates of pixels on the circumference of radius r_test
+            # skimage.draw.circle_perimeter ensures coordinates are within `shape` if provided.
+            rr, cc = circle_perimeter(peak_y, peak_x, r_test, shape=heatmap_norm.shape)
+            
+            if rr.size == 0: # No pixels on this circumference (e.g., peak near edge, radius too large)
+                break 
+
+            current_ring_intensities = heatmap_norm[rr, cc]
+            current_ring_avg_intensity = np.mean(current_ring_intensities)
+
+            # Stop if slope is no longer strictly downward (i.e., current is flat or increasing)
+            if current_ring_avg_intensity >= last_ring_avg_intensity:
+                break 
+            else:
+                # Still decreasing, this radius is good. Update for next iteration.
+                last_ring_avg_intensity = current_ring_avg_intensity
+                estimated_radius = r_test # Update to this successful radius
+        
+        points_and_radius.append([float(peak_x), float(peak_y), float(estimated_radius)])
+
+    return np.array(points_and_radius, dtype=np.float64)
+
+
+
+
+
+
+
+
 
 
 def images2points(folder_path):
