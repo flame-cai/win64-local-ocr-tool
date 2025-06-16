@@ -335,8 +335,8 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
-    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_points.txt")
-    LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}_labels.txt")
+    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_points.txt")
+    LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_labels.txt")
 
     # Check if the manuscript lines directory exists
     if os.path.exists(os.path.join(BASE_PATH, manuscript_name, "lines", page)) == False:
@@ -359,7 +359,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
 
     binarize_threshold = 100
     bounding_boxes = gen_bounding_boxes(det, binarize_threshold)
-    labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_points, filtered_labels, img2, output_path=os.path.join(BASE_PATH, manuscript_name, "points-2D", f"{page}.jpg"))
+    labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_points, filtered_labels, img2, output_path=os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}.jpg"))
 
     # Sort by the numeric label (5th element)
     # sorted_bboxes = sorted(labeled_bboxes, key=lambda x: x[4])
