@@ -64,7 +64,7 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path):
         # Gather points (with labels) inside the bounding box.
         pts_in_bbox = [
             (px, py, lab)
-            for (px, py), lab in zip(points, labels)
+            for (px, py), lab in zip(points, labels) #TODO ADD FEATURES
             if x_min <= px <= x_max and y_min <= py <= y_max
         ]
 
