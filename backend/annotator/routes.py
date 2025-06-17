@@ -125,7 +125,7 @@ def get_points_and_graph(manuscript_name, page):
         with open(POINTS_FILEPATH, "r") as f:
             points_raw = [row.strip().split() for row in f.readlines()]
         # Convert to numeric values
-        points = [[float(coord) for coord in point] for point in points_raw]
+        points = [[float(coord) for coord in point] for point in points_raw] ##TODO ADD FEATURES
         # Always include points in response
         response["points"] = points
 

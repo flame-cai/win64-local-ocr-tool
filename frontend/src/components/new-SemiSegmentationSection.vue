@@ -263,7 +263,7 @@ const fetchPageData = async () => {
     
     if (data.graph) {
       graph.value = data.graph;
-    } else if (data.points && data.points.length > 0) {
+    } else if (data.points && data.points.length > 0) {  // TODO ADD FEATURES
       const generatedGraph = generateLayoutGraph(data.points);
       graph.value = generatedGraph;
       await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);

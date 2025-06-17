@@ -182,7 +182,7 @@ function euclideanDistance(p1, p2) {
  * Generate a graph representation of text layout based on points.
  * This function implements the core layout analysis logic.
  */
-export function generateLayoutGraph(points) {
+export function generateLayoutGraph(points) { // TODO ADD FEATURES
   const NUM_NEIGHBOURS = 6;
   const cos_similarity_less_than = -0.8;
   
