@@ -185,9 +185,9 @@ def images2points(folder_path):
         # get region score and affinity score
         region_score, affinity_score = detect(image,detector, device)
         assert region_score.shape == affinity_score.shape
-        _points = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
+        _node_features = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
 
-        points_data.append(_points)
+        points_data.append(_node_features)
         out_images.append(np.copy(region_score))
 
 
@@ -201,8 +201,7 @@ def images2points(folder_path):
         cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
         
     for points_data,_filename in zip(points_data,file_names):
-        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_points.txt', points_data[:,:2], fmt='%d')
-        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_point_features.txt', points_data, fmt='%d')
+        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_node_features.txt', points_data, fmt='%d')
 
 
     # clear GPU memory  
@@ -229,7 +228,7 @@ def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn
     # os.makedirs(output_dir, exist_ok=True)
     
     # Extract node features (x and y coordinates)
-    node_features = np.array([[node['x'], node['y']] for node in graph_data['nodes']], dtype=np.float32)
+    node_features = np.array([[node['x'], node['y'], node['s']] for node in graph_data['nodes']], dtype=np.float32)
     
     # Extract edge indices in COO format
     edge_index = []
@@ -334,7 +333,7 @@ def data_to_serializable_graph_dict(data):
     """
     # Nodes
     nodes = [
-        {"id": i, "x": float(coord[0]), "y": float(coord[1])}
+        {"id": i, "x": float(coord[0]), "y": float(coord[1]), "s": float(coord[2])}
         for i, coord in enumerate(data.x.tolist())
     ]
 

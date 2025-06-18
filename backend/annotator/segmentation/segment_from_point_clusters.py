@@ -23,7 +23,7 @@ def gen_bounding_boxes(det, binarize_threshold):
     return bounding_boxes
 
 
-def load_points_and_labels(points_file, labels_file):
+def load_node_features_and_labels(points_file, labels_file):
     # Load points
     points = np.loadtxt(points_file, dtype=int)
 
@@ -32,15 +32,15 @@ def load_points_and_labels(points_file, labels_file):
         labels = [line.strip() for line in f]
 
     # Convert labels to integers where possible, otherwise mark as None
-    filtered_points = []
+    filtered_node_features = []
     filtered_labels = []
 
     for point, label in zip(points, labels):
         if label.lower() != "none":  # Exclude 'None' labels
-            filtered_points.append(point)
+            filtered_node_features.append(point)
             filtered_labels.append(int(label))  # Convert valid labels to int
 
-    return np.array(filtered_points), np.array(filtered_labels)
+    return np.array(filtered_node_features), np.array(filtered_labels)
 
 
 
@@ -64,7 +64,7 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path):
         # Gather points (with labels) inside the bounding box.
         pts_in_bbox = [
             (px, py, lab)
-            for (px, py), lab in zip(points, labels) #TODO ADD FEATURES
+            for (px, py, _), lab in zip(points, labels) #TODO ADD FEATURES
             if x_min <= px <= x_max and y_min <= py <= y_max
         ]
 
@@ -111,7 +111,7 @@ def assign_labels_and_plot(bounding_boxes, points, labels, image, output_path):
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     # Draw all points with their labels.
-    for (px, py), label in zip(points, labels):
+    for (px, py,_), label in zip(points, labels):  #TODO ADD FEATURES
         if label is not None:
             cv2.circle(image, (px, py), 5, (0, 0, 255), -1)
             cv2.putText(image, str(label), (px + 5, py - 5),
@@ -335,7 +335,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
-    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_points.txt")
+    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_node_features.txt")
     LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_labels.txt")
 
     # Check if the manuscript lines directory exists
@@ -346,7 +346,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
 
     image = loadImage(IMAGE_FILEPATH)
     det = loadImage(HEATMAP_FILEPATH)
-    filtered_points, filtered_labels = load_points_and_labels(POINTS_FILEPATH, LABELS_FILEPATH)
+    filtered_node_features, filtered_labels = load_node_features_and_labels(POINTS_FILEPATH, LABELS_FILEPATH)
 
     det = det.squeeze()
     print(det.shape)
@@ -359,7 +359,7 @@ def segmentLinesFromPointClusters(manuscript_name, page):
 
     binarize_threshold = 100
     bounding_boxes = gen_bounding_boxes(det, binarize_threshold)
-    labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_points, filtered_labels, img2, output_path=os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}.jpg"))
+    labeled_bboxes = assign_labels_and_plot(bounding_boxes, filtered_node_features, filtered_labels, img2, output_path=os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}.jpg"))
 
     # Sort by the numeric label (5th element)
     # sorted_bboxes = sorted(labeled_bboxes, key=lambda x: x[4])
