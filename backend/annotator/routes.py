@@ -91,12 +91,12 @@ def new_process_manuscript():
 
 # AUTO GENERATE GRAPH or load previously UPDATED GRAPH
 @bp.route("/semi-segment/<manuscript_name>/<page>", methods=["GET"])
-def get_points_and_graph(manuscript_name, page):
+def get_node_features_and_graph(manuscript_name, page):
     current_app.logger.info("Getting Manuscript Page, Points and previously updated graph (if available)")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_points.txt"
+        MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_node_features.txt"
     )
     GRAPH_FILEPATH = os.path.join(
         MANUSCRIPTS_PATH, manuscript_name, "graph-data"
@@ -209,10 +209,10 @@ def make_semi_segments(manuscript_name, page):
                 f.write("\n".join(map(str, labels)))
             
             # Also save the modifications log if present
-            if 'modifications' in request_data:
-                modifications_path = os.path.join(GRAPH_FILEPATH, f"{page}_modifications.json")
-                with open(modifications_path, 'w') as f:
-                    json.dump(request_data['modifications'], f, indent=2)
+            # if 'modifications' in request_data:
+            #     modifications_path = os.path.join(GRAPH_FILEPATH, f"{page}_modifications.json")
+            #     with open(modifications_path, 'w') as f:
+            #         json.dump(request_data['modifications'], f, indent=2)
         
 
         # Run manual segmentation after saving labels

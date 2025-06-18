@@ -301,7 +301,8 @@ export function generateLayoutGraph(points) { // TODO ADD FEATURES
     nodes: points.map((point, i) => ({
       id: i,
       x: parseFloat(point[0]),
-      y: parseFloat(point[1])
+      y: parseFloat(point[1]),
+      s: parseFloat(point[2]),
     })),
     edges: []
   };
