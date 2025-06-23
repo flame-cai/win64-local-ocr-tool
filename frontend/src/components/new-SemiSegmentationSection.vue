@@ -263,8 +263,8 @@ const fetchPageData = async () => {
     
     if (data.graph) {
       graph.value = data.graph;
-    } else if (data.points && data.points.length > 0) {  // TODO ADD FEATURES
-      const generatedGraph = generateLayoutGraph(data.points);
+    } else if (data.points && data.points.length > 0) {
+      const generatedGraph = generateLayoutGraph(data.points); // TODO generateFraph will also now have extra information (number of edges of each node and number edge overlaps)
       graph.value = generatedGraph;
       await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);
     }
