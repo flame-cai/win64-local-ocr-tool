@@ -82,6 +82,7 @@ npm run dev
         - [ ] Run line segmentation algorithm seperately for different font sizes 
         - [ ] Make the process closer to full automatic, using Graph Neural Networks
         - [ ] Process text of different font sizes seperately based on the heatmp (comments can have a different font size). (allow the user to tune the font size clustering sensitivity in the front end)
+        - [ ] Enable sanskrit experts to manually decide a "reading order" of main text, comments, footnotes
         - [ ] Collect Node Features and Edge Features for GNN Training
     - [ ] If CRAFT fails in detecting the characters themselves, we should be able to add or delete nodes too (along with the edges)
     - [ ] record location of the segmented line on map as meta data.
@@ -89,11 +90,14 @@ npm run dev
 - [ ] Recognition Model 
     - [ ] Fix bugs in fine tuning
     - [ ] after clicking fine tuning, we should go to next page, not home page
+    - [ ] Better iterative "active learning" UX
+
 
 
 - [ ] Post-Correction
     - [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
     - [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
+
 
 - [ ] Other TODO
     - [ ] Continue fixing inbuild devanagari typing mode. 
@@ -102,6 +106,6 @@ npm run dev
     - [ ] study benefits of "overdoing" finetuning: [Ref1](https://arxiv.org/pdf/2408.04809) [Ref2](https://imtiazhumayun.github.io/grokking/)
 
 - [ ] Collaboration
-    - [ ] Integrate with tools which analyze manuscripts, find links between manuscripts, connect references, concepts eg: shabdakosha
+    - [ ] Integrate with tools which analyze manuscripts, find links between manuscripts, connect references, concepts eg: shabda kosha
 
  
