@@ -93,13 +93,13 @@ npm run dev
     - [ ] Better iterative "active learning" UX
 
 
-
 - [ ] Post-Correction
     - [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
     - [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
 
 
 - [ ] Other TODO
+    - [ ] have two AI models attempt the same predictions. Places where they differ, or where they are uncertain need special attention.
     - [ ] Continue fixing inbuild devanagari typing mode. 
     - [ ] Integrate V2 EasyOCR English model, other scripts
     - [ ] Cuda profiling and Optimize GPU use
