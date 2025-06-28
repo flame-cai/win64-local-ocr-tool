@@ -72,16 +72,36 @@ npm run dev
 
 ## TODO
 
-- [ ] record location of the segmented line on map as meta data..
-- [ ] Integrate V2 English model
-- [ ] Multi-layerd line segmentation based on font size
-- [ ] Cuda profiling 
-- [ ] UX zoom - maintain aspect ratio
-- [ ] Per line iterative finetuning
-- [ ] Run line segmentation algorithm seperately for different font sizes (allow the user to tune the font size clustering sensitivity in the front end)
-- [ ] If CRAFT fails, we should be able to add or delete nodes too (along with the edges)
-- [ ] benefits of "overdoing" finetuning: [Ref1](https://arxiv.org/pdf/2408.04809) [Ref2](https://imtiazhumayun.github.io/grokking/)
-- [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
-- [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
+
+
+
+- [ ] Layout Analysis
+    - [ ] better UX - better zoom in.
+    - [ ] improve the graph construction algorithm
+        - [ ] support footnotes written in a different orientation
+        - [ ] Run line segmentation algorithm seperately for different font sizes 
+        - [ ] Make the process closer to full automatic, using Graph Neural Networks
+        - [ ] Process text of different font sizes seperately based on the heatmp (comments can have a different font size). (allow the user to tune the font size clustering sensitivity in the front end)
+        - [ ] Collect Node Features and Edge Features for GNN Training
+    - [ ] If CRAFT fails in detecting the characters themselves, we should be able to add or delete nodes too (along with the edges)
+    - [ ] record location of the segmented line on map as meta data.
+
+- [ ] Recognition Model 
+    - [ ] Fix bugs in fine tuning
+    - [ ] after clicking fine tuning, we should go to next page, not home page
+
+
+- [ ] Post-Correction
+    - [ ] integrate ByT5-Sanskrit with this tool and auto-correct the OCR output
+    - [ ] finetune [ByT5-Sanskrit](https://huggingface.co/chronbmm/sanskrit-byt5-ocr-postcorrection) using [reinforcement learning](https://arxiv.org/abs/2501.17161)
+
+- [ ] Other TODO
+    - [ ] Continue fixing inbuild devanagari typing mode. 
+    - [ ] Integrate V2 EasyOCR English model, other scripts
+    - [ ] Cuda profiling and Optimize GPU use
+    - [ ] study benefits of "overdoing" finetuning: [Ref1](https://arxiv.org/pdf/2408.04809) [Ref2](https://imtiazhumayun.github.io/grokking/)
+
+- [ ] Collaboration
+    - [ ] Integrate with tools which analyze manuscripts, find links between manuscripts, connect references, concepts eg: shabdakosha
 
  
