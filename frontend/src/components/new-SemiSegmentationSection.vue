@@ -1,9 +1,11 @@
 <template>
   <div class="manuscript-viewer">
-    <!-- Toolbar and Edit Instructions Bar (no changes here from your provided snippet) -->
+    <!-- Toolbar and Edit Instructions Bar -->
     <div class="toolbar">
       <div class="main-controls">
         <h10>{{ manuscriptName }} - Page {{ currentPage }}</h10>
+        <!-- ADDED THE SAVE IMAGE BUTTON HERE -->
+        <button @click="saveImageWithOverlay" :disabled="loading || isProcessingSave || !imageLoaded">Save Image</button>
         <button @click="previousPage" :disabled="loading || isProcessingSave">Prev</button>
         <button @click="nextPage" :disabled="loading || isProcessingSave">Next</button>
         <button @click="goToIMG2TXTPage" :disabled="loading || isProcessingSave">Annotate Text</button>
@@ -157,7 +159,7 @@
       </div>
     </div>
 
-    <!-- Edit Actions Bar & Modifications Log (no changes from your provided snippet) -->
+    <!-- Edit Actions Bar & Modifications Log -->
     <div v-if="editMode && graphIsLoaded" class="modifications-log-container">
         <button @click="saveModificationsAndStay" :disabled="isProcessingSave || modifications.length === 0">Save Graph</button>
         <div v-if="modifications.length > 0" class="modifications-details">
@@ -338,8 +340,6 @@ const handleWheelZoom = (event) => {
   translateX.value = mouseX_viewport - (mouseX_viewport - oldTx) * (newScale / oldScale);
   translateY.value = mouseY_viewport - (mouseY_viewport - oldTy) * (newScale / oldScale);
   currentScale.value = newScale;
-  
-  // console.log(`Zoom: Scale=${currentScale.value.toFixed(3)}, TX=${translateX.value.toFixed(1)}, TY=${translateY.value.toFixed(1)}`);
 };
 
 // --- PAN HANDLING ---
@@ -418,13 +418,10 @@ const getDynamicStrokeWidth = (edge) => {
 const handleSvgMouseMove = (event) => {
   if (!editMode.value || !svgOverlayRef.value || !imageLoaded.value) return;
   
-  // Mouse coordinates relative to the SVG element's bounding box
   const svgRect = svgOverlayRef.value.getBoundingClientRect();
   const mouseX_svgElement = event.clientX - svgRect.left;
   const mouseY_svgElement = event.clientY - svgRect.top;
 
-  // Convert these to original graph coordinate system
-  // Since svgRect.width = imageOriginalWidth * currentScale, mouse_graph = mouse_svg_element / currentScale
   const mouseX_graph = mouseX_svgElement / currentScale.value;
   const mouseY_graph = mouseY_svgElement / currentScale.value;
 
@@ -443,12 +440,9 @@ const handleSvgMouseLeave = () => {
   if (selectedNodes.value.length === 1 && !isAKeyPressed.value && !isDKeyPressed.value) {
     tempLineEndPoint.value = null;
   }
-  // Could also clear A/D key hover states if desired, but current logic handles it
 };
 
 const handleSvgBackgroundClick = (event) => {
-  // This event is on the SVG overlay. If a node/edge was clicked, their handlers
-  // with .stop would have caught it. So, this is a click on SVG background.
   if (isAKeyPressed.value || isDKeyPressed.value || isPanning.value) return;
   console.log('SVG background click');
   resetSelection();
@@ -468,7 +462,6 @@ const fetchPageData = async () => {
   imageOriginalHeight.value = 0;
   modifications.value = [];
   
-  // Reset pan/zoom to defaults before new image potentially changes dimensions
   currentScale.value = 1.0;
   translateX.value = 0;
   translateY.value = 0;
@@ -480,12 +473,9 @@ const fetchPageData = async () => {
     if (!response.ok) throw new Error((await response.json()).error || 'Failed to fetch page data');
     const data = await response.json();
     
-    // Original dimensions are set by onImageLoad after image data is set
-    // points and graph data processing remains largely the same
     points.value = data.points.map(point => ({ coordinates: [point[0], point[1]], segment: null }));
     
     if (data.graph && data.graph.nodes && data.graph.nodes.length > 0) {
-      // ... (existing graph processing logic)
        data.graph.nodes.forEach(node => {
         if (typeof node.numEdges === 'undefined') { 
             let count = 0;
@@ -507,21 +497,21 @@ const fetchPageData = async () => {
       graph.value = generatedGraph; 
       await saveGeneratedGraph(manuscriptName.value, currentPage.value, generatedGraph);
     }
-    resetWorkingGraph(); // This will also populate legends
+    resetWorkingGraph();
 
     if (data.image) {
       console.log('Image data received from backend.');
-      imageData.value = data.image; // This will trigger @load on the <img>
+      imageData.value = data.image; 
     } else {
       console.warn('No image data received from backend.');
-      imageLoaded.value = true; // Mark as loaded to allow UI to proceed (e.g. show placeholder)
-      nextTick(resetView); // Attempt to reset view even without image.
+      imageLoaded.value = true; 
+      nextTick(resetView);
     }
 
   } catch (err) {
     console.error('Error fetching page data:', err);
     error.value = err.message || 'Failed to load page data';
-    imageLoaded.value = true; // Still mark as "loaded" to stop spinners if fetch fails
+    imageLoaded.value = true;
   } finally {
     loading.value = false;
     console.log('Finished fetching page data.');
@@ -529,7 +519,7 @@ const fetchPageData = async () => {
 };
 
 
-// --- EXISTING GRAPH LOGIC (mostly unchanged, check hover interactions) ---
+// --- EXISTING GRAPH LOGIC ---
 function getColorForValue(value, type) {
   let mapping, assignedCounter, defaultColor;
   if (type === 'node') {
@@ -602,7 +592,6 @@ const resetWorkingGraph = () => {
 const resetSelection = () => { selectedNodes.value = []; tempLineEndPoint.value = null;};
 const onNodeClick = (nodeId, event) => { if (isAKeyPressed.value || isDKeyPressed.value) return; event.stopPropagation(); const existingIndex = selectedNodes.value.indexOf(nodeId); if (existingIndex !== -1) { selectedNodes.value.splice(existingIndex, 1); } else { if (selectedNodes.value.length < 2) { selectedNodes.value.push(nodeId); } else { selectedNodes.value = [nodeId]; } } tempLineEndPoint.value = null;};
 const onEdgeClick = (edge, event) => { if (isAKeyPressed.value || isDKeyPressed.value) return; event.stopPropagation(); selectedNodes.value = [edge.source, edge.target];};
-// onBackgroundClick is now handleSvgBackgroundClick
 const edgeExists = (nodeAId, nodeBId) => { if (nodeAId === undefined || nodeBId === undefined) return false; return workingGraph.edges.some(e => (e.source === nodeAId && e.target === nodeBId) || (e.source === nodeBId && e.target === nodeAId));};
 const addEdgeManual = () => { if (selectedNodes.value.length !== 2) return; const [sourceId, targetId] = selectedNodes.value; if (sourceId === targetId || edgeExists(sourceId, targetId)) return; const newEdge = { source: sourceId, target: targetId, overlaps: 1, modified: true, label: 0 }; workingGraph.edges.push(newEdge); const sourceNode = getNodeById(sourceId); const targetNode = getNodeById(targetId); if (sourceNode) sourceNode.numEdges = (sourceNode.numEdges || 0) + 1; if (targetNode) targetNode.numEdges = (targetNode.numEdges || 0) + 1; modifications.value.push({ type: 'add', ...newEdge }); resetColorMappingsAndPopulateLegends(); resetSelection();};
 const addEdge = addEdgeManual; // Alias
@@ -612,57 +601,14 @@ const undoModification = (index) => { const mod = modifications.value[index]; if
 const resetModifications = () => { resetWorkingGraph(); modifications.value = [];};
 const isNodeSelected = (nodeId) => selectedNodes.value.includes(nodeId);
 const isEdgeSelected = (edge) => { return selectedNodes.value.length === 2 && ((selectedNodes.value[0] === edge.source && selectedNodes.value[1] === edge.target) || (selectedNodes.value[0] === edge.target && selectedNodes.value[1] === edge.source));};
-// getNodeRadius is now getDynamicNodeRadius
 const confirmAndNavigate = async (navigationAction) => { if (isProcessingSave.value) { alert("Please wait for the current save operation to complete."); return; } if (modifications.value.length > 0) { if (confirm('You have unsaved changes. Do you want to save them before navigating?')) { isProcessingSave.value = true; try { await saveModifications(); modifications.value = []; navigationAction(); } catch (err) { alert("Failed to save changes. Please try again or discard changes to navigate."); } finally { isProcessingSave.value = false; } } else { modifications.value = []; navigationAction(); } } else { navigationAction(); }};
 const nextPage = () => confirmAndNavigate(() => annotationStore.nextPage());
 const previousPage = () => confirmAndNavigate(() => annotationStore.previousPage());
 const handleGlobalKeyDown = (e) => { if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey) { if (isProcessingSave.value) return; e.preventDefault(); editMode.value = !editMode.value; return; } if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey) { if (loading.value || isProcessingSave.value) return; e.preventDefault(); goToIMG2TXTPage(); return; } if (!editMode.value || e.repeat) return; if (e.key.toLowerCase() === 'd') { e.preventDefault(); isDKeyPressed.value = true; resetSelection(); } if (e.key.toLowerCase() === 'a') { e.preventDefault(); isAKeyPressed.value = true; hoveredNodesForMST.clear(); resetSelection(); }};
 const handleGlobalKeyUp = (e) => { if (!editMode.value) return; if (e.key.toLowerCase() === 'd') isDKeyPressed.value = false; if (e.key.toLowerCase() === 'a') { isAKeyPressed.value = false; if (hoveredNodesForMST.size >= 2) addMSTEdges(); hoveredNodesForMST.clear(); }};
-
-// Distance utility (unchanged, uses graph coordinates)
 function distanceToLineSegment(px, py, x1, y1, x2, y2) { const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2; if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2); let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2; t = Math.max(0, Math.min(1, t)); const projX = x1 + t * (x2 - x1); const projY = y1 + t * (y2 - y1); return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);};
-
-const handleEdgeHoverDelete = (mouseX_graph, mouseY_graph) => { // Takes graph coordinates
-  let edgeRemoved = false;
-  // Effective threshold in graph units (EDGE_HOVER_THRESHOLD_PX is screen pixels)
-  const effectiveThreshold_graph = EDGE_HOVER_THRESHOLD_PX / currentScale.value;
-
-  for (let i = workingGraph.edges.length - 1; i >= 0; i--) {
-    const edge = workingGraph.edges[i];
-    const nodeSource = getNodeById(edge.source);
-    const nodeTarget = getNodeById(edge.target);
-    if (!nodeSource || !nodeTarget) continue;
-
-    // Use original node coordinates
-    const dist = distanceToLineSegment(mouseX_graph, mouseY_graph, nodeSource.x, nodeSource.y, nodeTarget.x, nodeTarget.y);
-
-    if (dist < effectiveThreshold_graph) {
-      const removedEdge = workingGraph.edges.splice(i, 1)[0];
-      if (nodeSource && nodeSource.numEdges > 0) nodeSource.numEdges--;
-      if (nodeTarget && nodeTarget.numEdges > 0) nodeTarget.numEdges--;
-      modifications.value.push({ type: 'delete', source: removedEdge.source, target: removedEdge.target, overlaps: removedEdge.overlaps, label: removedEdge.label !== undefined ? removedEdge.label : 0 });
-      edgeRemoved = true;
-    }
-  }
-  if (edgeRemoved) resetColorMappingsAndPopulateLegends();
-};
-
-const handleNodeHoverCollect = (mouseX_graph, mouseY_graph) => { // Takes graph coordinates
-  // NODE_HOVER_RADIUS_PX was for diameter, so actual radius in pixels is NODE_HOVER_RADIUS_PX / 2
-  const actualHoverRadius_pixels = NODE_HOVER_RADIUS_PX / 2;
-  // Effective hover radius in graph units
-  const effectiveHoverRadius_graph = actualHoverRadius_pixels / currentScale.value;
-
-  workingGraph.nodes.forEach(node => {
-    // Use original node coordinates
-    const distSq = (mouseX_graph - node.x) ** 2 + (mouseY_graph - node.y) ** 2;
-    if (distSq < effectiveHoverRadius_graph ** 2) {
-      hoveredNodesForMST.add(node.id);
-    }
-  });
-};
-
-// DSU and MST calculation (unchanged)
+const handleEdgeHoverDelete = (mouseX_graph, mouseY_graph) => { const effectiveThreshold_graph = EDGE_HOVER_THRESHOLD_PX / currentScale.value; let edgeRemoved = false; for (let i = workingGraph.edges.length - 1; i >= 0; i--) { const edge = workingGraph.edges[i]; const nodeSource = getNodeById(edge.source); const nodeTarget = getNodeById(edge.target); if (!nodeSource || !nodeTarget) continue; const dist = distanceToLineSegment(mouseX_graph, mouseY_graph, nodeSource.x, nodeSource.y, nodeTarget.x, nodeTarget.y); if (dist < effectiveThreshold_graph) { const removedEdge = workingGraph.edges.splice(i, 1)[0]; if (nodeSource && nodeSource.numEdges > 0) nodeSource.numEdges--; if (nodeTarget && nodeTarget.numEdges > 0) nodeTarget.numEdges--; modifications.value.push({ type: 'delete', source: removedEdge.source, target: removedEdge.target, overlaps: removedEdge.overlaps, label: removedEdge.label !== undefined ? removedEdge.label : 0 }); edgeRemoved = true; } } if (edgeRemoved) resetColorMappingsAndPopulateLegends(); };
+const handleNodeHoverCollect = (mouseX_graph, mouseY_graph) => { const actualHoverRadius_pixels = NODE_HOVER_RADIUS_PX / 2; const effectiveHoverRadius_graph = actualHoverRadius_pixels / currentScale.value; workingGraph.nodes.forEach(node => { const distSq = (mouseX_graph - node.x) ** 2 + (mouseY_graph - node.y) ** 2; if (distSq < effectiveHoverRadius_graph ** 2) { hoveredNodesForMST.add(node.id); } }); };
 class DSU { constructor() { this.parent = {}; } init(nodeIndices) { this.parent = {}; nodeIndices.forEach(idx => this.parent[idx] = idx); } find(i) { if (this.parent[i] === i) return i; return this.parent[i] = this.find(this.parent[i]); } union(i, j) { const rootI = this.find(i); const rootJ = this.find(j); if (rootI !== rootJ) { this.parent[rootJ] = rootI; return true; } return false; }};
 function calculateMST(nodeIds, allNodesData) { if (nodeIds.length < 2) return []; const nodesForMST = nodeIds.map(id => allNodesData.find(n => n.id === id)).filter(n => n); if (nodesForMST.length < 2) return []; const mstEdges = []; const potentialEdges = []; for (let i = 0; i < nodesForMST.length; i++) { for (let j = i + 1; j < nodesForMST.length; j++) { const p1 = nodesForMST[i]; const p2 = nodesForMST[j]; const dist = Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2); potentialEdges.push({ source: p1.id, target: p2.id, weight: dist }); } } potentialEdges.sort((a, b) => a.weight - b.weight); const dsu = new DSU(); dsu.init(nodeIds); for (const edge of potentialEdges) { if (dsu.union(edge.source, edge.target)) { mstEdges.push({ source: edge.source, target: edge.target }); } } return mstEdges;};
 const addMSTEdges = () => { const nodesToConnect = Array.from(hoveredNodesForMST); if (nodesToConnect.length < 2) return; const mstNewEdges = calculateMST(nodesToConnect, workingGraph.nodes); let edgeAdded = false; mstNewEdges.forEach(edge => { if (!edgeExists(edge.source, edge.target)) { const newEdgeData = { source: edge.source, target: edge.target, overlaps: 1, modified: true, label: 0 }; workingGraph.edges.push(newEdgeData); const sourceNode = getNodeById(edge.source); const targetNode = getNodeById(edge.target); if (sourceNode) sourceNode.numEdges = (sourceNode.numEdges || 0) + 1; if (targetNode) targetNode.numEdges = (targetNode.numEdges || 0) + 1; modifications.value.push({ type: 'add', ...newEdgeData }); edgeAdded = true; } }); if (edgeAdded) resetColorMappingsAndPopulateLegends();};
@@ -670,6 +616,107 @@ const addMSTEdges = () => { const nodesToConnect = Array.from(hoveredNodesForMST
 // Save logic (unchanged)
 const saveModifications = async () => { try { console.log('Saving modifications...'); const request = { graph: workingGraph, modifications: modifications.value, points: points.value.map(point => point.segment), modelName: annotationStore.modelName }; const response = await fetch( `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscriptName.value}/${currentPage.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) } ); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: "Failed to parse error from backend" })); throw new Error(errorData.error || 'Failed to save and process on backend'); } const responseData = await response.json(); graph.value = JSON.parse(JSON.stringify(workingGraph)); workingGraph.edges.forEach(edge => edge.modified = false); modifications.value = []; error.value = null; if (responseData.lines) { if (!annotationStore.recognitions[manuscriptName.value]) { annotationStore.recognitions[manuscriptName.value] = {}; } annotationStore.recognitions[manuscriptName.value][currentPage.value] = responseData.lines; } resetColorMappingsAndPopulateLegends(); console.log('Graph saved and page processed successfully.'); } catch (err) { console.error('Error in saveModifications:', err); error.value = err.message || 'Failed to save modifications'; throw err; }};
 const saveModificationsAndStay = async () => { if (isProcessingSave.value) return; isProcessingSave.value = true; try { await saveModifications(); alert("Graph saved successfully!"); } catch (err) { alert(`Failed to save graph: ${err.message}`); } finally { isProcessingSave.value = false; }};
+
+// --- IMAGE SAVING LOGIC (NEW) ---
+
+/**
+ * A helper function to load an image from a source URL using a Promise.
+ * This allows us to use async/await for cleaner code.
+ * @param {string} src - The source of the image (e.g., a base64 data URL).
+ * @returns {Promise<HTMLImageElement>} A promise that resolves with the loaded image element.
+ */
+const loadImage = (src) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    // Allow cross-origin loading for SVGs, important for tainted canvas issues.
+    img.crossOrigin = 'Anonymous'; 
+    img.onload = () => resolve(img);
+    img.onerror = (err) => reject(err);
+    img.src = src;
+  });
+};
+
+/**
+ * Generates and downloads a PNG image of the manuscript page with the graph overlay.
+ * The image is rendered at the original resolution.
+ */
+const saveImageWithOverlay = async () => {
+  if (!imageLoaded.value || !imageData.value || imageOriginalWidth.value === 0) {
+    alert("Image data is not available to save.");
+    return;
+  }
+  
+  console.log("Starting image save process...");
+
+  try {
+    // 1. Create an off-screen canvas at original resolution
+    const canvas = document.createElement('canvas');
+    canvas.width = imageOriginalWidth.value;
+    canvas.height = imageOriginalHeight.value;
+    const ctx = canvas.getContext('2d');
+    
+    // Set a background color in case the image has transparency
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Draw the base manuscript image onto the canvas
+    const baseImageSrc = `data:image/jpeg;base64,${imageData.value}`;
+    const baseImage = await loadImage(baseImageSrc);
+    ctx.drawImage(baseImage, 0, 0, imageOriginalWidth.value, imageOriginalHeight.value);
+    console.log("Base image drawn on canvas.");
+
+    // 3. Generate an SVG string with non-scaled, original-resolution elements
+    let svgString = `<svg width="${imageOriginalWidth.value}" height="${imageOriginalHeight.value}" xmlns="http://www.w3.org/2000/svg">`;
+
+    // Draw edges first
+    workingGraph.edges.forEach(edge => {
+      const sourceNode = getNodeById(edge.source);
+      const targetNode = getNodeById(edge.target);
+      if (sourceNode && targetNode) {
+        // For the export, we use the base stroke width, not the dynamically scaled one.
+        const strokeWidth = BASE_EDGE_STROKE_WIDTH_SVG; 
+        const strokeColor = getEdgeColor(edge);
+        svgString += `<line x1="${sourceNode.x}" y1="${sourceNode.y}" x2="${targetNode.x}" y2="${targetNode.y}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />`;
+      }
+    });
+
+    // Draw nodes on top of edges
+    workingGraph.nodes.forEach(node => {
+      // For the export, we use the base radius, ignoring selection/hover states.
+      const radius = BASE_NODE_RADIUS_SVG;
+      // We also get the base color, ignoring interactive states.
+      const nodeColor = getColorForValue(node.numEdges, 'node');
+      svgString += `<circle cx="${node.x}" cy="${node.y}" r="${radius}" fill="${nodeColor}" />`;
+    });
+
+    svgString += `</svg>`;
+    console.log("SVG string generated for overlay.");
+
+    // 4. Draw the SVG overlay onto the canvas
+    // We must first load the SVG string as an image
+    const svgImageSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+    const svgImage = await loadImage(svgImageSrc);
+    ctx.drawImage(svgImage, 0, 0);
+    console.log("SVG overlay drawn on canvas.");
+
+    // 5. Trigger the download
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png'); // Use PNG for high quality
+    link.download = `manuscript_${manuscriptName.value}_page_${currentPage.value}_with_graph.png`;
+    
+    // Append to body, click, and then remove
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log("Image download triggered successfully.");
+    
+  } catch (error) {
+    console.error("Failed to save image with overlay:", error);
+    alert("An error occurred while trying to save the image. Please check the console for details.");
+  }
+};
+
 
 // --- LIFECYCLE HOOKS & WATCHERS ---
 watch(() => annotationStore.currentPage, (newPage, oldPage) => {
@@ -689,7 +736,7 @@ watch(() => annotationStore.currentPage, (newPage, oldPage) => {
     imageOriginalWidth.value = 0;
     imageOriginalHeight.value = 0;
   }
-}, { immediate: true }); // Immediate true to load data on initial component mount
+}, { immediate: true });
 
 watch(editMode, (newValue) => {
   if (!newValue) { // Exiting edit mode
@@ -701,12 +748,10 @@ watch(editMode, (newValue) => {
   }
 });
 
-// Watch for image dimensions to be ready and then reset view.
-// This handles cases where image loads after container is ready.
 watch([imageOriginalWidth, imageOriginalHeight], ([newW, newH]) => {
     if (newW > 0 && newH > 0 && visualizationContainerRef.value && imageLoaded.value) {
         console.log("Image dimensions watcher triggered, resetting view.");
-        nextTick(resetView); // Use nextTick to ensure DOM is updated if container size changed
+        nextTick(resetView);
     }
 });
 
@@ -716,25 +761,18 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeyDown);
   window.addEventListener('keyup', handleGlobalKeyUp);
 
-  // Initial fetchPageData is handled by the immediate watcher on currentPage
-  // Initial resetView depends on container and image dimensions.
-  // We use nextTick to ensure the container ref is available and has dimensions.
   nextTick(() => {
     if (visualizationContainerRef.value) {
-      visualizationContainerRef.value.style.cursor = 'grab'; // Set initial cursor
-      // If image is already loaded (e.g. from cache or very fast load), reset view
+      visualizationContainerRef.value.style.cursor = 'grab';
       if (imageLoaded.value && imageOriginalWidth.value > 0) {
           console.log("onMounted: image already loaded, resetting view.");
           resetView();
       }
-
-      // Observe container resize to readjust view
       resizeObserver = new ResizeObserver(() => {
         console.log('Visualization container resized, resetting view.');
         resetView();
       });
       resizeObserver.observe(visualizationContainerRef.value);
-
     } else {
       console.warn('Visualization container ref not available on mount.');
     }
@@ -745,7 +783,6 @@ onBeforeUnmount(() => {
   console.log('Component unmounting.');
   window.removeEventListener('keydown', handleGlobalKeyDown);
   window.removeEventListener('keyup', handleGlobalKeyUp);
-  // Clean up pan listeners just in case
   document.removeEventListener('mousemove', handlePanMove);
   document.removeEventListener('mouseup', handlePanEnd);
   if (resizeObserver && visualizationContainerRef.value) {
@@ -768,20 +805,20 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
 }
 
-.toolbar { /* ... existing styles ... */ display: flex; justify-content: space-between; align-items: flex-start;  padding: 3px 8px;  background-color: #f0f0f0; border-bottom: 1px solid #ddd; flex-shrink: 0; gap: 10px; }
-.main-controls { /* ... existing styles ... */ display: flex; align-items: center; gap: 8px;  flex-wrap: nowrap;  }
-.main-controls h10 { /* ... existing styles ... */ font-size: 0.9em;  white-space: nowrap; }
-.main-controls button { /* ... existing styles ... */ padding: 3px 8px;  font-size: 0.85em; }
-.toggle-container label { /* ... existing styles ... */ font-size: 0.85em; }
-.legend-area { /* ... existing styles ... */ margin-left: auto;  }
-.legend-container { /* ... existing styles ... */ display: flex; flex-direction: row;  gap: 8px; padding: 3px; font-size: 0.75em;  background-color: #f9f9f9; border-radius: 3px; border: 1px solid #e0e0e0; }
-.legend h4 { /* ... existing styles ... */ margin-top: 0; margin-bottom: 3px; font-size: 0.9em;  font-weight: bold; }
-.legend ul { /* ... existing styles ... */ list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 3px; }
-.legend li { /* ... existing styles ... */ display: flex; align-items: center; gap: 3px; padding: 1px 3px; border: 1px solid #eee; border-radius: 2px; background-color: #fff; }
-.color-box { /* ... existing styles ... */ width: 10px; height: 10px; border: 1px solid #ccc; display: inline-block; }
-.legend-modified-edge-note { /* ... existing styles ... */ margin-top: 2px; display: flex; align-items: center; gap: 3px; font-style: italic; font-size: 0.9em; }
-.edit-instructions-bar { /* ... existing styles ... */ background-color: #e9ecef;  padding: 3px 8px; font-size: 0.8em; color: #495057; border-bottom: 1px solid #ddd; text-align: center; flex-shrink: 0; }
-.edit-instructions-bar p { /* ... existing styles ... */ margin: 0; display: inline;  margin-right: 10px;  }
+.toolbar { display: flex; justify-content: space-between; align-items: flex-start;  padding: 3px 8px;  background-color: #f0f0f0; border-bottom: 1px solid #ddd; flex-shrink: 0; gap: 10px; }
+.main-controls { display: flex; align-items: center; gap: 8px;  flex-wrap: nowrap;  }
+.main-controls h10 { font-size: 0.9em;  white-space: nowrap; }
+.main-controls button { padding: 3px 8px;  font-size: 0.85em; }
+.toggle-container label { font-size: 0.85em; }
+.legend-area { margin-left: auto;  }
+.legend-container { display: flex; flex-direction: row;  gap: 8px; padding: 3px; font-size: 0.75em;  background-color: #f9f9f9; border-radius: 3px; border: 1px solid #e0e0e0; }
+.legend h4 { margin-top: 0; margin-bottom: 3px; font-size: 0.9em;  font-weight: bold; }
+.legend ul { list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 3px; }
+.legend li { display: flex; align-items: center; gap: 3px; padding: 1px 3px; border: 1px solid #eee; border-radius: 2px; background-color: #fff; }
+.color-box { width: 10px; height: 10px; border: 1px solid #ccc; display: inline-block; }
+.legend-modified-edge-note { margin-top: 2px; display: flex; align-items: center; gap: 3px; font-style: italic; font-size: 0.9em; }
+.edit-instructions-bar { background-color: #e9ecef;  padding: 3px 8px; font-size: 0.8em; color: #495057; border-bottom: 1px solid #ddd; text-align: center; flex-shrink: 0; }
+.edit-instructions-bar p { margin: 0; display: inline;  margin-right: 10px;  }
 .processing-save-notice, .loading, .error-message {  padding: 15px; text-align: center; flex-shrink: 0; }
 .processing-save-notice { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0,0,0,0.75); color: white; border-radius: 8px; z-index: 10000; font-size: 1em; }
 .loading { font-style: italic; color: #666; flex-grow: 1; display:flex; align-items:center; justify-content:center;}
@@ -789,40 +826,30 @@ onBeforeUnmount(() => {
 
 /* --- Styles for Zoom/Pan --- */
 .visualization-container {
-  position: relative; /* For absolute positioning of children if needed */
-  overflow: hidden;  /* Crucial: This is the viewport */
+  position: relative;
+  overflow: hidden;
   flex-grow: 1; 
   background-color: #e0e0e0; 
-  display: flex; /* Can help center if content is smaller but not strictly necessary with transform */
-  /* justify-content: center; /* Not needed if transform-wrapper is 0,0 origin */
-  /* align-items: center; /* Not needed */
-  cursor: grab; /* Initial cursor for panning */
-  user-select: none; /* Prevent text selection during pan */
+  display: flex;
+  cursor: grab;
+  user-select: none;
 }
 
 .transform-wrapper {
-  /* This element is scaled and translated. Its size is determined by its content. */
-  /* transform-origin: 0 0; is set via :style binding */
-  /* It will contain the image and the SVG overlay */
-  /* Needs to allow absolute positioning of SVG on top of image wrapper */
   position: relative; 
 }
 
 .image-wrapper {
-  /* This div holds the image and points overlay. Its dimensions are the original image dimensions. */
-  /* width and height are bound via :style to imageOriginalWidth/Height */
-  position: relative; /* For points-overlay positioning */
-  line-height: 0; /* To remove any space below the image if it's display: inline-block */
+  position: relative;
+  line-height: 0;
 }
 
 .manuscript-image {
   display: block; 
-  /* width and height attributes are set to imageOriginalWidth/Height */
-  /* These ensure the image itself is rendered at its native resolution before scaling by parent */
-  max-width: none; /* Override any global max-width that might shrink it */
+  max-width: none;
   max-height: none;
   user-select: none;
-  pointer-events: none; /* Image should not capture mouse events meant for panning/SVG */
+  pointer-events: none;
   opacity: 0.85; 
 }
 
@@ -832,45 +859,41 @@ onBeforeUnmount(() => {
   justify-content: center;
   background-color: #ccc;
   color: #666;
-  /* width and height are bound via :style to imageOriginalWidth/Height */
 }
 
 .points-overlay {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%; /* Relative to image-wrapper */
-  height: 100%; /* Relative to image-wrapper */
-  pointer-events: none; /* Points are visual, not interactive (unless changed) */
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .point {
   position: absolute;
-  background-color: rgba(255, 0, 0, 0.7); /* More visible */
+  background-color: rgba(255, 0, 0, 0.7);
   border-radius: 50%;
-  /* transform: translate(-50%, -50%); is set via :style */
-  /* width and height are dynamic via :style */
 }
 
 .graph-overlay {
-  position: absolute; /* Overlay on top of image-wrapper */
+  position: absolute;
   top: 0;
   left: 0;
-  /* width and height are bound to imageOriginalWidth/Height */
-  cursor: default; /* Default cursor for SVG, pan cursor is on visualization-container */
-  pointer-events: auto; /* Allow SVG to capture its own events */
+  cursor: default;
+  pointer-events: auto;
 }
 /* --- End Styles for Zoom/Pan --- */
 
-.modifications-log-container { /* ... existing styles ... */ padding: 5px 8px; background-color: #f0f0f0; border-top: 1px solid #ddd; flex-shrink: 0; display: flex;  align-items: center; gap: 10px; font-size: 0.8em; }
+.modifications-log-container { padding: 5px 8px; background-color: #f0f0f0; border-top: 1px solid #ddd; flex-shrink: 0; display: flex;  align-items: center; gap: 10px; font-size: 0.8em; }
 .modifications-log-container > button {  padding: 3px 8px; font-size: 0.9em;  }
-.modifications-details { /* ... existing styles ... */ display: flex; align-items: center; gap: 5px; flex-grow: 1;  }
+.modifications-details { display: flex; align-items: center; gap: 5px; flex-grow: 1;  }
 .modifications-details span {  white-space: nowrap; }
 .modifications-details > button {  padding: 2px 6px; font-size: 0.9em; margin-left: 5px;  }
-.modifications-details ul { /* ... existing styles ... */ list-style-type: none; padding: 0 3px; margin: 0; max-height: 40px;  overflow-y: auto; border: 1px solid #ddd; background-color: #fff; border-radius: 3px; flex-grow: 1;  display: flex;  flex-direction: column; }
-.modification-item { /* ... existing styles ... */ display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; border-bottom: 1px solid #eee; font-size: 0.9em;  white-space: nowrap; }
+.modifications-details ul { list-style-type: none; padding: 0 3px; margin: 0; max-height: 40px;  overflow-y: auto; border: 1px solid #ddd; background-color: #fff; border-radius: 3px; flex-grow: 1;  display: flex;  flex-direction: column; }
+.modification-item { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; border-bottom: 1px solid #eee; font-size: 0.9em;  white-space: nowrap; }
 .modification-item:last-child { border-bottom: none; }
-.undo-button { /* ... existing styles ... */ font-size: 0.9em; padding: 1px 4px; background-color: #fffde7; border-color: #fff59d; margin-left: 5px; }
+.undo-button { font-size: 0.9em; padding: 1px 4px; background-color: #fffde7; border-color: #fff59d; margin-left: 5px; }
 button:disabled {  opacity: 0.5; cursor: not-allowed; background-color: #e9ecef; }
 button:hover:not(:disabled) { background-color: #dde1e6; }
 </style>
