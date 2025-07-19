@@ -207,10 +207,10 @@ const panStartY = ref(0);
 const tempLineEndPoint = ref(null); // Stores {x, y} in graph coordinates for drawing temp line
 
 // --- CONSTANTS FOR DYNAMIC SIZING ---
-const BASE_NODE_RADIUS_SVG = 3; // Base radius in SVG units (graph coordinate system)
+const BASE_NODE_RADIUS_SVG = 4; // Base radius in SVG units (graph coordinate system)
 const SELECTED_NODE_BASE_RADIUS_SVG = 6;
 const HOVER_COLLECT_NODE_BASE_RADIUS_SVG = 5;
-const BASE_EDGE_STROKE_WIDTH_SVG = 2.5;
+const BASE_EDGE_STROKE_WIDTH_SVG = 3;
 const SELECTED_EDGE_STROKE_WIDTH_SVG = 3;
 const BASE_TEMP_LINE_STROKE_WIDTH = 2; // For the orange dashed line
 const BASE_POINT_VISUAL_SIZE = 4; // Apparent visual size for points
