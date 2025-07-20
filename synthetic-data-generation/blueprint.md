@@ -22,27 +22,23 @@ TextBox can be of various types: main_text, marginalia, page number, interlinear
 
 ## To generate random layouts we can use: 
 can be configured in the config.. We should also be add additional strategies in the future.
-### 1) simple rejection sampling:
-prioritizes dense layouts (text boxes close to each other). ** Using Adjacency-Biased Placement**
-Instead of complex space-partitioning algorithms (like BSP trees or quadtrees to track free rectangles), we can use a simpler, highly effective heuristic that achieves the desired "dense packing" behavior:
-1. **Place the main_text first:** This box is typically the largest and most central. It can be placed randomly but biased towards the page center.
-2. **For subsequent textboxes:**
-    - With a high probability p_adjacent (e.g., 0.8, defined in config), attempt to place the new box adjacent to an existing one.
-        - a. Randomly select an already-placed textbox.
-        - b. Randomly select one of its four sides (top, bottom, left, right).
-        - c. Sample a position for the new box's center along that side, slightly offset by a random margin.
-        - d. Perform a collision check against **all** other existing boxes. If it collides, retry a few times (e.g., pick a different side or existing box) before giving up on adjacency.
-    - With probability 1 - p_adjacent, or if the adjacent placement fails, fall back to placing the box randomly on the page (standard rejection sampling).
-The p_adjacent parameter gives us a tunable knob to control the "denseness" of the layout, which is excellent for Domain Randomization. 
-This encourages a clustered, dense layout, mimicking how a scribe might fill a page.
-Use Seperating Axis Theorem (SAT) algorithm for collision detection between two convex polygons. 
+### 1) Simple Rejection Sampling
+To ensure robust and predictable behavior, the collision detection process must be precisely defined in relation to the augmentation pipeline.
+Plan the Layout with OBBs: Place the main_text box first. For subsequent textboxes, perform the adjacency-biased placement. Crucially, all collision detection for layout planning is done using the textbox's Oriented Bounding Box (OBB) before any Phase 2 non-linear distortions (like Warp/Curl) are applied.
+a. A "TextBox Blueprint" is defined by its (position, orientation_deg, width, height). This defines the OBB.
+b. During the layout planning phase, we use the Separating Axis Theorem (SAT) on these OBBs to check for collisions.
+c. If a placement is valid (no OBB collision), the blueprint is saved.
+Apply Distortions After Placement: The Warp/Curl augmentation is applied in Phase 2 after the entire page layout has been finalized. This means a textbox's final warped points might slightly overlap an adjacent box's OBB, which is a desirable and realistic artifact simulating paper curl or ink bleed. The ground truth, however, remains distinct as the textbox_id labels are already assigned.
+This two-step process (plan with simple convex shapes, then distort) gives us computational efficiency, predictable layouts, and realistic final effects without the risk of failed collision checks due to non-convexity.
 ### 2) special ambiguous layouts: 
 These generators are designed to create the following challenging cases for layout analysis algorithms by making local neighbor relationships ambiguous.
 #### Grid Layout
 -   **Goal**: Create a perfect grid of points where horizontal and vertical spacing are equal, making the reading order (horizontal vs. vertical) impossible to infer from spacing alone.
 -   **Generation**: Generate points at `(x_0 + i*S, y_0 + j*S)` for `i` in `range(N)` and `j` in `range(M)`, where `S` is the constant spacing.
 -   **Labeling Interpretation**: For each generated layout, please save input-label pairs for both interpretations of reading order.  Hence generate **two separate samples** from a single geometric arrangement.
-- **Augmentations**: all augmentations for textboxes can OPTIONALLY be applied here too
+- **Augmentations**: For these layouts, only a subset of augmentations may be applied to the single, all-encompassing TextBox. The configuration file will specify an augmentation_profile: "ambiguous" for these layouts, which will be distinct from the default profile.
+Permitted Augmentations: Point-Level Jitter, Global Jitter, Point Dropout, and global rotation of the entire pattern. These introduce noise without providing strong directional cues.
+Forbidden Augmentations: Shear, Stretch, Warp/Curl, and Text Alignment. These geometric distortions would break the perfect grid/circular symmetry, defeating the purpose of the layout.
 #### Concentric Circles Layout
 -   **Goal**: Create points arranged in concentric circles where the spacing between points along a circle's circumference is approximately equal to the radial spacing between circles. This creates ambiguity between a "circular" reading order and a "radial" (spoke-like) reading order.
 -   **Generation**: To create true ambiguity between circular and radial readings, I suggest a "polar grid" approach:
@@ -184,22 +180,47 @@ This hybrid workflow gives us the organizational clarity of OOP for complex layo
 
 ##  On the Overall Generation Flow
 
-Here is a high-level, step-by-step process for generating a single sample page, incorporating the hybrid workflow:
-Initialization: (No change)
-Page Generation (generate_page):
-Step 1: Setup Page: (No change)
-Step 2: Choose Layout Strategy: (No change)
-Step 3: Plan Layout: (No change)
-Step 4: Populate & Distort TextBoxes: Iterate through the TextBox blueprints. For each one:
-a. Create a TextBox object.
-b. (Phase 1) Call a textbox.populate_content() method. This method executes the TextBox Content Generation using the OOP structure (TextLine, Word, Point) to create the ideal text layout in local coordinates.
-c. (Consolidation & Phase 2) Call a textbox.consolidate_and_distort() method. This method first converts the object hierarchy into powerful NumPy arrays for points and labels. Then, it applies the TextBox Geometric Augmentations (Shear, Stretch, Warp) as vectorized operations on these arrays.
-Step 5: Assemble Page: Create a Page object. Iterate through the populated and distorted TextBox objects:
-a. Take the textbox's NumPy point array and apply its global position and orientation via a final vectorized transformation (rotation and translation). This converts the points from local to global coordinates.
-b. Collect all transformed NumPy arrays of points and labels into page-wide master arrays.
-Step 6: Apply Final Page Augmentations (Phase 3): Apply Missing Characters and Global Jitter as vectorized operations on the final, aggregated NumPy point array.
-Step 7: Handle Special Layouts: (No change)
-Step 8: Save Outputs: (No change - normalization is now understood to be the conversion from Global to Normalized coordinates).
+Here is a high-level, step-by-step process for generating a single sample page, incorporating the hybrid workflow and resolving the identified logical issues.
+Initialization:
+Load and validate the configuration file (e.g., config.yaml) using Pydantic.
+Initialize the master random.Random object with a given seed. This single random state object will be passed to every function or class that requires stochasticity, ensuring perfect reproducibility.
+Initialize registries for layout strategies and augmentations.
+Strategy Selection & Page Setup:
+Sample a LayoutStrategy from the configuration (e.g., rejection_sampling, grid, concentric_circles).
+Sample the page width and height from the config.
+Layout Generation (Path-Dependent):
+Path A: Standard Layout (rejection_sampling)
+a. Plan Layout & Generate Blueprints: An empty list of placed_blueprints is created.
+First, attempt to place the main_text TextBoxBlueprint.
+Interlinear Gloss Placement: Immediately after placing a main_text blueprint, probabilistically decide whether to generate interlinear_gloss boxes. If so, calculate their blueprint properties (position, orientation) relative to the main_text blueprint. Use SAT to check for collisions only between the gloss and its parent main_text box. If valid, add both the main_text and its interlinear_gloss blueprints to placed_blueprints. These are now a single unit for future collision checks.
+Iteratively sample and place other blueprints (marginalia, page_number) using rejection sampling with SAT against all OBBs in placed_blueprints.
+b. Generate Content for each Blueprint: Create an empty list, page_content. Iterate through the placed_blueprints:
+i. Phase 1 (Content Generation): A ContentGenerator uses the blueprint's properties (width, height, box_type) and the config to create a TextBox object. This object contains the full OOP hierarchy (TextLine -> Word -> Point) in local coordinates.
+ii. Consolidation: Call a .consolidate() method on the TextBox object. This traverses the OOP structure and returns two NumPy arrays: points_local (shape Nx3 for x,y,font_size) and line_ids_local (shape N,, with line IDs starting from 0 for this box).
+iii. Phase 2 (Distortion): An AugmentationPipeline takes points_local and the default augmentation profile from the config. It applies the vectorized Shear, Stretch, and Warp augmentations, returning points_local_distorted.
+iv. Store for Assembly: Append a tuple (points_local_distorted, line_ids_local, blueprint) to the page_content list.
+Path B: Ambiguous Layout (grid or concentric_circles)
+a. Generate Geometry: A specialized generator function (e.g., generate_grid_geometry) creates a single NumPy array of points (points_local) spanning the entire page, based on parameters from the config.
+b. Generate Label Interpretations: A corresponding function (e.g., generate_grid_labels) creates two sets of line_ids_local arrays: one for horizontal reading order (line_ids_horizontal) and one for vertical (line_ids_vertical).
+c. Apply Limited Augmentations (Phase 2): The AugmentationPipeline is called on points_local but is passed the "ambiguous" augmentation profile from the config. This applies only non-biasing augmentations (e.g., global rotation), returning points_local_distorted.
+d. Fork for Output: The process now "forks". It will proceed to the next steps twice, once with line_ids_horizontal and once with line_ids_vertical, ultimately creating two separate samples from the single distorted geometry.
+Page Assembly & Final Augmentations (Applied to Global Coords):
+Initialize lists for all points on the page: all_points_global = [], all_textbox_ids = [], all_textline_ids = [].
+A global_line_id_offset = 0 counter is initialized.
+Iterate through the page_content list (from Step 3b):
+a. Transform to Global: Retrieve points_local_distorted, line_ids_local, and the blueprint for the current textbox.
+b. Apply a vectorized affine transformation (rotation from blueprint.orientation_deg and translation from blueprint.position) to points_local_distorted to get points_global.
+c. Make Line IDs Globally Unique: Add global_line_id_offset to line_ids_local. This ensures no two lines on the page share an ID.
+d. Append to Page Data: Append points_global to all_points_global. Append the now-global line IDs to all_textline_ids. Create and append the textbox_id labels for each point.
+e. Update Offset: Increment global_line_id_offset by the number of lines in the current textbox (line_ids_local.max() + 1).
+Consolidate Page: Convert the lists into three final NumPy arrays: page_points (M x 3), page_textbox_labels (M,), page_textline_labels (M,).
+Phase 3 (Page-Level Augmentations): Apply vectorized Point Dropout and Global Jitter directly to the page_points array.
+Saving Outputs:
+For each sample to be saved (one for standard layouts, two for ambiguous):
+a. Create Directory: Create a unique output directory {sample_id}.
+b. Normalize: Calculate normalized coordinates and font sizes from the final page_points array.
+c. Write Files: Save inputs_unnormalized.txt, inputs_normalized.txt, labels_textbox.txt, and the appropriate labels_textline.txt. For ambiguous layouts, the input files will be identical across the two samples, but the textline label files will differ.
+d. Visualize (Optional): If enabled, render the page points, OBBs, and text line boundaries to {sample_id}.png.
 
 ## MISC
 - **Configuration File:** Use Pydantic for configuration loading and validation.
@@ -225,12 +246,14 @@ Average/min/max points per page.
 Average number of textboxes per page.
 This provides a high-level sanity check on the generated data.
 
+Please begin coding
+
+
+
+
+
 
 Before you code, please study this in depth the following and ask me if you have any doubts, clarifications:
 - Please think about the implementation details and the perfect flow of generation.
 - Please also suggest additional miscellaneous improvements which can be done.
-
-
-
-
 Before writing the code, I want you to please write me a professional blueprint prompt which will document all the detailed specifications of this synthetic layout generator. Please format the prompt as a .md files so that I copy it easily.
