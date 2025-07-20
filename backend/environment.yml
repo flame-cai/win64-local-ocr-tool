@@ -35,3 +35,6 @@ dependencies:
       - nltk
       - python-json-logger
       - regex
+      - pyyaml 
+      - shapely
+
