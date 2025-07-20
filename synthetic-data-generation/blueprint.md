@@ -1,175 +1,236 @@
-# Project Blueprint: Synthetic Manuscript Layout Generator (v2.1 FINAL)
-
-## 1. Overview
-
-This document outlines the specifications for a Python-based synthetic data generator. The goal is to create diverse, script-agnostic page layouts of handwritten manuscripts for training and evaluating machine learning models for document layout analysis.
-
+You are an expert in Domain Randomization and synthetic data generation.
+This document outlines the specifications for a Python-based ablation friendly, modular synthetic data generator. The goal is to create diverse, script-agnostic page layouts of handwritten manuscripts for training and evaluating machine learning models for document layout analysis.
 Each character on a page is abstracted as a `Point` with three features: `(x, y, font_size)`. The generator will produce these point clouds along with corresponding ground-truth labels for textboxes and text lines, enabling supervised learning.
+The code should have classes for points (characters), words (a collection of points), text lines (a collection of words), and text box (a collection of text lines)
 
-The system is designed with core principles of Domain Randomization, modularity, and scalability to generate millions of unique samples.
+Class Definitions
+-   **`Point(x, y, font_size)`**: The fundamental unit. Stores unnormalized local coordinates and font size.
+-   **`Word(points: list[Point])`**: A collection of `Point` objects.
+-   **`TextLine(words: list[Word])`**: A collection of `Word` objects.
+-   **`TextBox(text_lines: list[TextLine], box_type: str, position: tuple, orientation_deg: float, width: float, height: float
 
-## 2. Core Design Principles
+TextBox can be of various types: main_text, marginalia, page number, interlinear_gloss (There is a probability of generating a small `interlinear_gloss` textbox positioned relative to a line in the `main_text`.)
 
--   **Domain Randomization:** Every variable parameter of the generation process (e.g., page size, number of textboxes, spacing, orientation) will be sampled from a pre-defined probability distribution to ensure high variance in the output data.
--   **Modularity:** The code will be organized into logical, decoupled components (structures, generators, augmentations, visualizer). This allows for easy logging, debugging, maintenance and extension.
--   **Ablation-Friendly:** Augmentations and specific layout features will be implemented in a way that allows them to be easily enabled or disabled via a configuration file, facilitating ablation studies on model performance.
--   **Scalability:** The generation process for a single page will be self-contained, allowing for trivial parallelization across multiple CPU cores to generate large datasets.
--   **Reproducibility:** All stochastic processes will be controlled by a single random seed to ensure that any generated sample can be perfectly reproduced for debugging and validation.
+## The system is designed with the following core design  principles:
+
+-   **Domain Randomization:** Every variable parameter of the generation process (e.g., page size, number of textboxes, spacing, orientation) will be sampled from a pre-defined probability distribution to ensure high variance in the output data.
+-   **Modularity:** The code will be organized into logical, decoupled components (TextBox types, augmentations, visualizer). This allows for easy logging, debugging, maintenance and extension. We want to be able to add/remove/edit augmentations and text box types in the future.
+-   **Ablation-Friendly:** Augmentations and specific layout features will be implemented in a way that allows them to be easily enabled or disabled via a configuration file, facilitating ablation studies on model performance.
+-   **Scalability:** The generation process for a single page will be self-contained, allowing for trivial parallelization across multiple CPU cores to generate large datasets.
+-   **Reproducibility:** All stochastic processes will be controlled by a single random seed to ensure that any generated sample can be perfectly reproduced for debugging and validation.
 
 
-## 3. System Architecture
+## To generate random layouts we can use: 
+can be configured in the config.. We should also be add additional strategies in the future.
+### 1) simple rejection sampling:
+prioritizes dense layouts (text boxes close to each other). ** Using Adjacency-Biased Placement**
+Instead of complex space-partitioning algorithms (like BSP trees or quadtrees to track free rectangles), we can use a simpler, highly effective heuristic that achieves the desired "dense packing" behavior:
+1. **Place the main_text first:** This box is typically the largest and most central. It can be placed randomly but biased towards the page center.
+2. **For subsequent textboxes:**
+    - With a high probability p_adjacent (e.g., 0.8, defined in config), attempt to place the new box adjacent to an existing one.
+        - a. Randomly select an already-placed textbox.
+        - b. Randomly select one of its four sides (top, bottom, left, right).
+        - c. Sample a position for the new box's center along that side, slightly offset by a random margin.
+        - d. Perform a collision check against **all** other existing boxes. If it collides, retry a few times (e.g., pick a different side or existing box) before giving up on adjacency.
+    - With probability 1 - p_adjacent, or if the adjacent placement fails, fall back to placing the box randomly on the page (standard rejection sampling).
+The p_adjacent parameter gives us a tunable knob to control the "denseness" of the layout, which is excellent for Domain Randomization. 
+This encourages a clustered, dense layout, mimicking how a scribe might fill a page.
+Use Seperating Axis Theorem (SAT) algorithm for collision detection between two convex polygons. 
+### 2) special ambiguous layouts: 
+These generators are designed to create the following challenging cases for layout analysis algorithms by making local neighbor relationships ambiguous.
+#### Grid Layout
+-   **Goal**: Create a perfect grid of points where horizontal and vertical spacing are equal, making the reading order (horizontal vs. vertical) impossible to infer from spacing alone.
+-   **Generation**: Generate points at `(x_0 + i*S, y_0 + j*S)` for `i` in `range(N)` and `j` in `range(M)`, where `S` is the constant spacing.
+-   **Labeling Interpretation**: For each generated layout, please save input-label pairs for both interpretations of reading order.  Hence generate **two separate samples** from a single geometric arrangement.
+- **Augmentations**: all augmentations for textboxes can OPTIONALLY be applied here too
+#### Concentric Circles Layout
+-   **Goal**: Create points arranged in concentric circles where the spacing between points along a circle's circumference is approximately equal to the radial spacing between circles. This creates ambiguity between a "circular" reading order and a "radial" (spoke-like) reading order.
+-   **Generation**: To create true ambiguity between circular and radial readings, I suggest a "polar grid" approach:
+	1. **Fix the number of spokes (radial lines), K.** This will be a randomized parameter.
+	2. **Define the spoke angles:** theta_k = k * (2*pi / K) for k from 0 to K-1. These angles are now constant for the entire layout.
+	3. **Iterate through radii:** For each radius r (from r_0 with step S), place one point at each of the K spoke angles.
+-   **Labeling Interpretation**:  For each generated layout, please save input-label pairs for both interpretations of reading order.  Hence generate **two separate samples** from a single geometric arrangement.
+- **Augmentations**: all augmentations for textboxes can OPTIONALLY be applied here too
 
-### 3.1. File Structure
+---
+
+## Following are are all the ways in which a page can "vary"
+We need to model the variations in following augmentations, using appropriate **Probability Distributions.**
+It should be like code written by an expert in Domain Randomization. The code should be modular, and we should have a config. file for this. 
+
+The generator will model variations using a cascaded augmentation pipeline. Augmentations are organized into three distinct phases, applied sequentially. Every parameter mentioned is to be sampled from a probability distribution defined in the configuration file (e.g., config.), enabling fine-grained control and Domain Randomization.
+
+to begin, we want to achieve high variance in page sizes and aspect ratios
+
+---
+
+### **Phase 1: TextBox Content & Micro-Variations (Applied in Local Coordinates)**
+
+This phase focuses on generating the "ideal" content of a single textbox as a point cloud centered at (0,0). It defines the internal structure and introduces small-scale, handwriting-like imperfections.
+
+- **Core Text Structure Parameters:**
+    
+    - **Font Sizes:** A base font_size is sampled for the textbox.
+        
+    - **Spacing Parameters:** The fundamental spacing is defined here, with the initial state typically being character_spacing < word_spacing < line_spacing.
+        
+        - Character Spacing: The distance between points within a word.
+            
+        - Word Spacing: The distance between words on a line.
+            
+        - Line Spacing (Leading): The vertical distance between text lines.
+            
+    - **Content Density:**
+        
+        - Words per TextLine: The number of words to generate for a typical line. Supports single-word "lines" for logographic scripts.
+            
+        - Lines per TextBox: The number of text lines to generate within the box.
+            
+    - **Text Alignment:** Determines how lines are positioned relative to each other within the textbox's width.
+        
+        - Options: left, right, center, justify. For justify, we can calculate the "slack" (the difference between the textbox width and the line's natural width). This slack can then be distributed by increasing the word_spacing for that specific line. 
+            
+- **Structural Variations:**
+    
+    - **Line Breaks:** A probabilistic model for introducing line breaks within a single logical text line. Controlled by two parameters: probability_of_break and a distribution for break_location.
+        
+- **Micro-level Jitter (Handwriting Imperfection):**
+    
+    - **TextLine-Level Variation:** A slight, random variation is applied to the font_size of each individual TextLine within the textbox.
+        
+    - **Point-Level Jitter:** A small random offset is added to the local (x, y) coordinates of each individual Point to simulate the unsteadiness of a human hand.
+        
+
+---
+
+### **Phase 2: TextBox Geometric Distortion (Applied in Local Coordinates)**
+
+After the points for a textbox are generated in their ideal grid-like layout, this phase applies large-scale geometric distortions to the entire point cloud of the textbox, simulating physical properties of the writing surface. These transformations are applied sequentially as a chain.
+
+- **Shear:** Skews the textbox along the X or Y axis, transforming the rectangular shape into a parallelogram.
+    
+- **Stretch:** Applies non-uniform scaling, stretching or squashing the textbox more along one axis than the other.
+    
+- **Warp / Curl:** Applies non-linear, wave-like distortions to the point coordinates, simulating a curved or wrinkled page surface. This is typically implemented using sine functions applied to the points' coordinates.
+    
+
+Each of these augmentations is controlled by a probability of being applied and a set of parameters sampled from the config (e.g., shear_factor, curl_amplitude, curl_frequency).
+
+---
+
+### **Phase 3: Page-Level Augmentations (Applied in Global Coordinates)**
+
+This final phase is applied after all textboxes have been generated, distorted, and placed at their final position and orientation on the page. These augmentations affect the entire point cloud and can create interactions between different textboxes.
+
+
+- **Textbox Placement & Orientation:** While not strictly an augmentation, the layout strategy's placement of textboxes (with randomized positions and orientations) is the primary page-level variation. This includes placing textboxes very close to or touching each other.
+    
+- **Interlinear Gloss Placement:** A special case where a small interlinear_gloss textbox is probabilistically generated and its position is calculated relative to a specific text line within the main_text box.
+    
+- **Missing Characters (Point Dropout):** Iterates through all final points on the page and removes each one with a given probability. This simulates ink fade or physical damage.
+    
+- **Global Jitter (Congestion Simulation):** This critical final step simulates a congested or hurried writing style. A small random offset is added to the **global** coordinates of every point on the page. This is distinct from the local point-level jitter because it can cause a point from one text line to become closer to a point in an adjacent line (or even an adjacent textbox) than to its neighbors in its own line, breaking the initial spacing rules and creating challenging cases for layout analysis algorithms.
+
+---
+## INPUTS and LABELS
+
+For each sample page, a directory `{sample_id}` is created with:
+-   **`inputs_unnormalized.txt`**: `x y font_size` in raw generation units.
+-   **`inputs_normalized.txt`**: `x_norm y_norm font_size_norm`.
+    -   `x_norm`, `y_norm`: Coords scaled such that the longest page dimension maps to `[0, 1]`.
+    -   `font_size_norm`: Font size divided by page height.
+-   **`labels_textbox.txt`**: `textbox_id` (integer).
+-   **`labels_textline.txt`**: `textline_id` (globally unique integer).
+-   **`{sample_id}.png`**: Visualization of the page, color-coded by textbox ID. (Before we generate millions of data points, we should optionally be able visualize and save images of a small number of data points just to verify if the code is working.) We also want optional rendering flags (controlled via config or CLI) to draw:
+	- The **oriented bounding box** of each TextBox. This is crucial for verifying placement, orientation, and collision detection logic.
+	- The **text line boundaries** within a textbox, color-coded differently.
+
+for example input_unnormalized.txt should look like this (with x, y, and font_size)
 
 ```
-manuscript-generator/
-├── generate.py                # Main script to run generation jobs (accepts --seed)
-├── layout_generator.py        # Core logic for standard layouts
-├── ambiguous_layouts.py       # Logic for special grid/circular layouts
-├── structures.py              # Class definitions (Point, Word, TextLine, TextBox, Page)
-├── augmentations.py           # Functions for data augmentation (warp, missing chars)
-├── visualizer.py              # Code to plot and save a visual representation of a page
-├── configs/
-│   └── default_params.yaml    # Defines all probability distributions and parameters
-└── output/
-    └── {sample_id}/
-        ├── input_unnormalized.txt
-        ├── input_normalized.txt
-        ├── labels_textbox.txt
-        └── labels_textline.txt
-        └── {sample_id}.png
-```
 
-input_unnormalized.txt should look like this (with x, y, and font_size)
-```
 700 752 28
+
 462 754 28
+
 418 755 28
+
 376 756 34
+
 so on...
+
 ```
-### 3.2. Class Definitions (`structures.py`)
+Ambiguous Layout Labeling: For the Grid and Concentric layouts, we can treat the entire grid/concentric circles as a single TextBox, and then each row/circle can be a TextLine.
+For each one of such generated layouts we want to save two data points, with everything but the labels different. It's okay if the input txt files are duplicate.
 
--   **`Point(x, y, font_size)`**: The fundamental unit. Stores unnormalized local coordinates and font size.
--   **`Word(points: list[Point])`**: A collection of `Point` objects.
--   **`TextLine(words: list[Word])`**: A collection of `Word` objects.
--   **`TextBox(text_lines: list[TextLine], box_type: str, position: tuple, orientation_deg: float, width: float, height: float)`**: The primary container.
-    -   `box_type`: A string identifier, e.g., `'main_text'`, `'marginalia'`, `'interlinear_gloss'`.
-    -   `position`: The `(x, y)` coordinates of the center of the un-rotated box on the page.
-    -   `orientation_deg`: The rotation of the box in degrees.
-    -   `width`, `height`: The dimensions of the un-rotated bounding box.
-    -   **Method `get_oriented_bounding_box()`**: Returns the 4 corner coordinates after rotation and translation. Used for collision detection.
-    -   **Method `collides_with(other_box)`**: Implements the Separating Axis Theorem (SAT) to check for overlap.
--   **`Page(width: float, height: float, textboxes: list[TextBox])`**: The top-level object.
-    -   **Maintains a global counter for `textline_id`** to ensure uniqueness across all textboxes on the page.
-    -   **Method `add_textbox(textbox)`**: Attempts to add a textbox, first checking for collisions.
-    -   **Method `apply_augmentations(config)`**: Applies a sequence of augmentation functions.
-    -   **Method `finalize_and_save(output_dir, sample_id)`**: Performs point transformation, normalization, and writes all output files.
 
-### 3.3. Generation Pipeline
 
-The generation of a single page follows these steps:
-1.  **Initialize Page**: Sample page aspect ratio. Set a large base height (e.g., 1000 units).
-2.  **Generate TextBoxes**: Generate and attempt to place a main textbox and a variable number of ancillary textboxes. Placement uses **rejection sampling**: a random position is chosen, and if it results in a collision, a new position is sampled up to a maximum number of attempts.
-3.  **Apply Augmentations**: The complete `Page` object is passed to a pipeline of augmentation functions.
-4.  **Finalize and Save**: This crucial final step ensures all outputs are consistent. The `Page.finalize_and_save()` method will:
-    a. Initialize empty lists for final points (normalized and unnormalized) and labels.
-    b. Iterate through its `textboxes` in a fixed order. For each `textbox`:
-    c. Iterate through its `text_lines`. For each `text_line`:
-    d. Iterate through its `words` and `points`. For each `point`:
-        i. Apply the parent textbox's rotation and translation to the point's local coordinates to get the final page coordinates.
-        ii. Append the unnormalized point, normalized point, textbox ID, and unique text-line ID to their respective lists.
-    e. Write the contents of these finalized, consistently-ordered lists to the output `.txt` files.
+## Important Core Considerations:
+- **Coordinate System Management**
+To avoid ambiguity and bugs, all positional data will be handled within one of three explicitly defined coordinate systems. All augmentations and transformations are strictly bound to a specific system.
+Local Coordinates (TextBox-centric): Each TextBox's point cloud is initially generated in its own coordinate system, with its origin (0, 0) typically at the box's center. All internal content generation and distortions (Phase 1 and Phase 2 augmentations like local jitter, shear, and warp) are performed exclusively in this system.
+Global Coordinates (Page-centric): After a TextBox is fully populated and distorted in its local system, its points are transformed (rotated and translated) into the final page's coordinate system. This step places the box at its intended position and orientation on the page. All page-wide augmentations (Phase 3, such as global jitter and point dropout) that can affect interactions between textboxes happen in this system.
+Normalized Coordinates (Output-centric): As the final step before saving, the global coordinates of all points on the page are scaled to fit a [0, 1] range. The longest page dimension (either width or height) is mapped to 1.0. This is the coordinate system used for the inputs_normalized.txt output file, providing a consistent scale for machine learning models.
+This strict separation is vital for modularity, reproducibility, and correctness.
+- **The Hybrid OOP-to-Vectorized Workflow**
+The generator will employ a "best of both worlds" approach, leveraging the strengths of both Object-Oriented Programming (OOP) and vectorized computation with NumPy.
+Phase 1 - Content Generation (OOP): The initial creation of text content will use the clear, logical class structure (TextLine contains Words, Word contains Points). This approach is ideal for handling the complex rules of text layout, such as character/word/line spacing, alignment, and line breaks. The code in this phase is highly readable and easy to reason about.
+The "Consolidation" Step: Once the ideal text content for a TextBox is generated as a hierarchy of objects, a crucial one-time "consolidation" method is called. This method traverses the object structure (TextLines -> Words -> Points) and flattens all character data into a single, highly efficient NumPy array of shape (N, 3) for (x, y, font_size). A corresponding NumPy array of shape (N,) for textline_id labels is also created.
+Phase 2 & 3 - Geometric Augmentation & Finalization (Vectorized): From the moment of consolidation onwards, all subsequent operations are performed on these NumPy arrays.
+Performance: Applying geometric distortions (Phase 2: Shear, Stretch, Warp), global transformations (rotation/translation), and page-level augmentations (Phase 3: Global Jitter, Dropout) as vectorized NumPy operations is orders of magnitude faster than iterating through Python objects.
+Clarity: The code for these mathematical transformations becomes a direct, clean, and often one-line implementation of the underlying formula (e.g., a single matrix multiplication for rotation).
+This hybrid workflow gives us the organizational clarity of OOP for complex layout logic and the raw computational performance of vectorized NumPy for all heavy-duty geometric manipulations, creating a system that is both scalable and maintainable.
 
-## 4. Core Generation Logic & Parameters
 
-Generation is controlled by a configuration file (`default_params.yaml`).
+##  On the Overall Generation Flow
 
-| Parameter | Distribution & Example | Description |
-| :--- | :--- | :--- |
-| **Page Aspect Ratio** | `Uniform(0.7, 1.4)` | Defines page shape. |
-| **Number of Ancillary Boxes** | `Poisson(lambda=2)` | Number of textboxes besides the main one. |
-| **TextBox Type** | `Categorical/Choice` | `p={'marginalia':0.6, ...}` |
-| **TextBox Orientation** | `Uniform(-5, 5)` for main, `Uniform(-180, 180)` for others. | Angle of rotation. |
-| **Base Font Size** | `LogNormal(mu=2.5, sigma=0.3)` | Base font size for a textbox. Unnormalized. |
-| **Character Spacing** | `Normal(mu=0.8, sigma=0.1)` | Multiplier of font size. |
-| **Line Spacing** | `Normal(mu=1.5, sigma=0.2)` | Multiplier of font size. **Note:** The mean (`μ`) must be kept significantly larger than the mean of `Character Spacing` to ensure layouts are generally readable, with congestion emerging from the variance (`σ`). |
-| **Positional Jitter (X, Y)**| `Normal(mu=0, sigma=0.05)` | Per-character positional noise, multiplier of font size. |
-| **Line Break Position** | `Uniform(0.7, 1.0)` | A line ends after filling this fraction of its width. |
-| **Content Counts** | `Poisson(lambda)` | Controls chars/word, words/line, lines/box. e.g. `words_per_line: Poisson(lambda=8)`. |
+Here is a high-level, step-by-step process for generating a single sample page, incorporating the hybrid workflow:
+Initialization: (No change)
+Page Generation (generate_page):
+Step 1: Setup Page: (No change)
+Step 2: Choose Layout Strategy: (No change)
+Step 3: Plan Layout: (No change)
+Step 4: Populate & Distort TextBoxes: Iterate through the TextBox blueprints. For each one:
+a. Create a TextBox object.
+b. (Phase 1) Call a textbox.populate_content() method. This method executes the TextBox Content Generation using the OOP structure (TextLine, Word, Point) to create the ideal text layout in local coordinates.
+c. (Consolidation & Phase 2) Call a textbox.consolidate_and_distort() method. This method first converts the object hierarchy into powerful NumPy arrays for points and labels. Then, it applies the TextBox Geometric Augmentations (Shear, Stretch, Warp) as vectorized operations on these arrays.
+Step 5: Assemble Page: Create a Page object. Iterate through the populated and distorted TextBox objects:
+a. Take the textbox's NumPy point array and apply its global position and orientation via a final vectorized transformation (rotation and translation). This converts the points from local to global coordinates.
+b. Collect all transformed NumPy arrays of points and labels into page-wide master arrays.
+Step 6: Apply Final Page Augmentations (Phase 3): Apply Missing Characters and Global Jitter as vectorized operations on the final, aggregated NumPy point array.
+Step 7: Handle Special Layouts: (No change)
+Step 8: Save Outputs: (No change - normalization is now understood to be the conversion from Global to Normalized coordinates).
 
-## 5. Data Augmentations
+## MISC
+- **Configuration File:** Use Pydantic for configuration loading and validation.
+- **CLI** Use a library like Click or Typer to build a simple but effective CLI.
+- **Distribution Sampler Utility:** Create a utility function sample_from_config(config_dict, random_state) that can parse distribution definitions from the YAML file.
+- **Extensible Enums**: For parameters like box_type or text_alignment, use Python's StrEnum (available in enum since Python 3.11, or as a backport). This allows you to use strings in the config file (e.g., alignment: "justify") while getting the type safety and auto-completion benefits of enums in the code.
+- **Validator Script**: A separate utility script validate_sample.py {sample_id} that loads a generated sample's files, checks for format errors (e.g., mismatched line counts), and re-renders the visualization. This is a crucial sanity check.
+- **Dry-Run Mode: A CLI flag** --dry-run that generates a single sample, prints its metadata to the console, and saves the visualization, but doesn't write the full dataset. This is perfect for quickly testing config changes.
+- **Extensibility via Factories/Registries:** For modularity, we can use a simple dictionary-based registry for layout strategies and augmentations. This avoids messy if/elif/else chains and allows new components to be added just by defining them in their respective modules. Create explicit registry objects.
+LAYOUT_STRATEGIES = {}
+AUGMENTATIONS = {}
+A function/class can be added to a registry using a simple decorator. This makes the system "pluggable." To add a new layout strategy, a developer simply creates a new Python file, defines their function, and adds @register_layout('my_new_strategy') above it. The main generator code never needs to be touched.
+- **Data Classes:** Using Python's dataclasses will make the Point, Word, TextLine, and TextBox classes cleaner and more robust.
+- **Type Hinting:** Use Python's type hints throughout the codebase. It improves readability and allows for static analysis.
+Core Implementation Strategy: From Logical Objects to Computational Arrays
+To achieve both conceptual clarity and high performance, the generator will be built on two foundational strategies: strict coordinate system management and a hybrid object-oriented/vectorized workflow.
+- **A Dataset Summary Report**
+Problem: After generating 100,000 samples, it's hard to know if the output distribution matches our intent.
+Suggestion: After a generation run, create a summary_report.md or summary.json in the root output directory. This report would contain aggregate statistics over the entire dataset:
+Histogram of textbox types generated.
+Distribution of page aspect ratios.
+Average/min/max points per page.
+Average number of textboxes per page.
+This provides a high-level sanity check on the generated data.
 
-Implemented in `augmentations.py`. Their application will be controlled by boolean flags in the config file.
 
--   **Textbox-Level Warp/Curl**: `warp_textbox(textbox, config)` applies a non-linear sinusoidal transformation to the points *within* a textbox to simulate local paper curl.
--   **Missing Characters**: `remove_points(page, probability)` iterates through all final points and deletes each one with a given `probability`.
--   **Interlinear Gloss**: Implemented as a layout feature in `layout_generator.py`. There is a probability of generating a small `interlinear_gloss` textbox positioned relative to a line in the `main_text`.
+Before you code, please study this in depth the following and ask me if you have any doubts, clarifications:
+- Please think about the implementation details and the perfect flow of generation.
+- Please also suggest additional miscellaneous improvements which can be done.
 
-## 6. Special Ambiguous Layouts (`ambiguous_layouts.py`)
 
-These generators are designed to create challenging cases for layout analysis algorithms by making local neighbor relationships ambiguous.
 
-### 6.1. Grid Layout
 
--   **Goal**: Create a perfect grid of points where horizontal and vertical spacing are equal, making the reading order (horizontal vs. vertical) impossible to infer from spacing alone.
--   **Generation**: Generate points at `(x_0 + i*S, y_0 + j*S)` for `i` in `range(N)` and `j` in `range(M)`, where `S` is the constant spacing.
--   **Labeling Interpretation**: To generate ground truth, **one interpretation must be chosen**. The default interpretation will be that **text lines run horizontally**. Therefore, all points with the same `j` index will be grouped into a single `TextLine` and share the same `textline_id`. The entire grid will belong to a single `TextBox`.
-
-### 6.2. Concentric Circles Layout
-
--   **Goal**: Create points arranged in concentric circles where the spacing between points along a circle's circumference is approximately equal to the radial spacing between circles. This creates ambiguity between a "circular" reading order and a "radial" (spoke-like) reading order.
--   **Generation**: Iterate through radii `r` from a starting radius `r_0` with a step `S`. For each `r`, calculate the number of points `N = floor(2*pi*r / S)` that can fit on the circumference with an arc length of approximately `S`. Place these `N` points evenly around the circle of radius `r`.
--   **Labeling Interpretation**: As with the grid, **one interpretation must be chosen for labeling**. The default interpretation will be that **each circle constitutes a text line**. Therefore, all points on the circle with radius `r` will be grouped into a single `TextLine` and share the same `textline_id`. The entire layout will belong to a single `TextBox`.
-
-## 7. Output Specification
-
-For each sample, a directory `{sample_id}` is created with:
--   **`input_unnormalized.txt`**: `x y font_size` in raw generation units.
--   **`input_normalized.txt`**: `x_norm y_norm font_size_norm`.
-    -   `x_norm`, `y_norm`: Coords scaled such that the longest page dimension maps to `[0, 1]`.
-    -   `font_size_norm`: Font size divided by page height.
--   **`labels_textbox.txt`**: `textbox_id` (integer).
--   **`labels_textline.txt`**: `textline_id` (globally unique integer).
--   **`{sample_id}.png`**: Visualization of the page, color-coded by textbox ID.
-
-## 8. Development & Implementation Strategy
-
-### 8.1. Recommended Implementation Order
-
-1.  **`structures.py`**: Implement all core data classes.
-2.  **`visualizer.py`**: Implement a basic visualizer to plot points from a `Page` object.
-3.  **Simple Generator**: In `layout_generator.py`, create a function that generates only a single, un-rotated main textbox and successfully saves all outputs.
-4.  **Full Parameterization**: Integrate the `config.yaml` file to control all generation parameters via distributions.
-5.  **Multi-Box & Collision**: Add logic for placing multiple textboxes with varying orientations, including the SAT-based collision detection.
-6.  **`augmentations.py`**: Implement the augmentation functions one by one, verifying each visually.
-7.  **`ambiguous_layouts.py`**: Implement the special case generators.
-
-### 8.2. Configuration for Ablation Studies
-
-The `config.yaml` file will be structured to allow for easy enabling/disabling of features.
-
-**Example `config.yaml` structure:**
-```yaml
-# --- Feature Flags ---
-features:
-  allow_interlinear_gloss: true
-
-augmentations:
-  use_textbox_warp: true
-  use_missing_chars: false # This augmentation is turned off
-
-# --- Parameters for Enabled Features ---
-textbox_warp:
-  amplitude: Uniform(0.5, 2.0)
-  frequency: Uniform(0.1, 0.5)
-
-missing_chars:
-  probability: 0.02
-
-# ... all other distributions
-```
-
-### 8.3. Reproducibility
-
-The main script `generate.py` must accept a command-line argument, e.g., `--seed 42`. This integer will be used to initialize the `numpy.random` generator at the start of the program, guaranteeing that the same command will always produce the identical output.
+Before writing the code, I want you to please write me a professional blueprint prompt which will document all the detailed specifications of this synthetic layout generator. Please format the prompt as a .md files so that I copy it easily.
