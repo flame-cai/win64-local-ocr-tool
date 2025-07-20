@@ -277,14 +277,17 @@ augmentation_profiles:
       distribution: "normal"
       mean: 0.0
       std: 0.05 # 5% variation
+    
+    # NEW STRUCTURE: The 'std' parameter is now sampled from its own distribution.
     point_level_jitter:
-      distribution: "normal"
-      mean: 0.0
-      std: 0.05 # 5% of font size
+      std:
+        distribution: "uniform"
+        min: 0.04 # 4% of font size
+        max: 0.06 # 6% of font size
 
     # Phase 2: Applied to textbox point cloud (before placing on page)
     shear:
-      prob: 0.5
+      prob: 0.0
       x_factor:
         distribution: "uniform"
         min: -0.3
@@ -294,7 +297,7 @@ augmentation_profiles:
         min: -0.3
         max: 0.3
     stretch:
-      prob: 0.5
+      prob: 0.0
       x_factor:
         distribution: "uniform"
         min: 0.8
@@ -304,7 +307,7 @@ augmentation_profiles:
         min: 0.8
         max: 1.2
     warp: # Simulates page curl
-      prob: 0.6
+      prob: 0.0
       amplitude:
         distribution: "uniform"
         min: 0.01
@@ -320,10 +323,13 @@ augmentation_profiles:
     # Phase 3: Applied to final page point cloud
     point_dropout:
       prob: 0.01 # Probability of dropping any single point
+      
+    # NEW STRUCTURE: The 'std' parameter is now sampled from its own distribution.
     global_jitter:
-      distribution: "normal"
-      mean: 0.0
-      std: 1.5 # small absolute pixel value
+      std:
+        distribution: "uniform"
+        min: 1.0 # The std of jitter will be between 1.0 and 2.0 pixels
+        max: 2.0
 
   # Special profile for ambiguous layouts to preserve symmetry
   ambiguous:
@@ -332,10 +338,12 @@ augmentation_profiles:
       distribution: "normal"
       mean: 0.0
       std: 0.0
+    
     point_level_jitter:
-      distribution: "normal"
-      mean: 0.0
-      std: 0.05 # Keep small jitter
+      std:
+        distribution: "uniform"
+        min: 0.04
+        max: 0.06
     
     # Disable geometric distortions that break symmetry
     shear:
@@ -349,9 +357,10 @@ augmentation_profiles:
     point_dropout:
       prob: 0.01
     global_jitter:
-      distribution: "normal"
-      mean: 0.0
-      std: 0.5 # smaller jitter
+      std:
+        distribution: "uniform"
+        min: 0.4
+        max: 0.6
 
 # --- Visualization Settings ---
 visualization:

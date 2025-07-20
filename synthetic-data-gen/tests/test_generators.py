@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ..config.config_models import Config
+from src.config.config_models import Config
 from src.generators.page_generator import PageGenerator
 from src.generators.content_generator import ContentGenerator
 from src.core.data_structures import BoxType

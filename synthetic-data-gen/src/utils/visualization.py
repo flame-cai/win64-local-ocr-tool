@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from ..core.data_structures import GeneratedPage, TextBoxBlueprint
-from ...config.config_models import VisualizationConfig
+from ..config.config_models import VisualizationConfig
 
 
 class Visualizer:

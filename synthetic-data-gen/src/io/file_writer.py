@@ -3,7 +3,7 @@ import numpy as np
 
 from ..core.data_structures import GeneratedPage
 from ..core.coordinate_systems import normalize_page_coordinates
-from ...config.config_models import Config
+from ..config.config_models import Config
 from ..utils.visualization import Visualizer
 
 class FileWriter:

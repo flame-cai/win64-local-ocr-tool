@@ -6,7 +6,7 @@ import random
 from tqdm import tqdm
 import multiprocessing
 
-from ..config.config_models import Config
+from .config.config_models import Config
 from .generators.page_generator import PageGenerator
 from .io.file_writer import FileWriter
 from .utils.visualization import Visualizer

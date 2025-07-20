@@ -7,7 +7,7 @@ from src.utils.validation import validate_sample_files
 from src.utils.visualization import Visualizer
 from src.io.file_writer import FileWriter
 from src.generators.page_generator import PageGenerator
-from config.config_models import Config
+from src.config.config_models import Config
 
 
 app = typer.Typer()

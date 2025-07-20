@@ -1,7 +1,7 @@
 import random
 from typing import Dict, Any
 
-from ...config.config_models import Distribution
+from ..config.config_models import Distribution
 
 def sample_from_config(config: Any, random_state: random.Random) -> Any:
     """

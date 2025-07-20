@@ -6,7 +6,7 @@ from ..core.registries import register_layout
 from ..core.data_structures import TextBoxBlueprint, BoxType
 from ..utils.distribution_sampler import sample_from_config
 from ..utils.collision_detection import check_collision_sat
-from ...config.config_models import Config
+from ..config.config_models import Config
 
 # --- Layout Strategy Implementations ---
 

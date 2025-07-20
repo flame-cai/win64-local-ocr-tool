@@ -72,16 +72,21 @@ class AugmentationParam(BaseModel):
     frequency: Optional[Distribution] = None
     axis: Optional[Distribution] = None
 
+# --- THIS IS THE KEY CHANGE ---
+class JitterAugmentation(BaseModel):
+    """A specific model for jitter augmentations to clarify the config structure."""
+    # The standard deviation is now its own parameter, which is a distribution
+    std: Distribution
 
 class AugmentationProfile(BaseModel):
     line_break_prob: float
     line_level_font_size_variation: Distribution
-    point_level_jitter: Distribution
+    point_level_jitter: JitterAugmentation # Changed
     shear: AugmentationParam
     stretch: AugmentationParam
     warp: AugmentationParam
     point_dropout: AugmentationParam
-    global_jitter: Distribution
+    global_jitter: JitterAugmentation # Changed
 
 
 class VisualizationConfig(BaseModel):

@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from ..core.data_structures import Point, Word, TextLine, TextBox, TextAlignment, BoxType
 from ..utils.distribution_sampler import sample_from_config
-from ...config.config_models import TextBoxTypeConfig, AugmentationProfile
+from ..config.config_models import TextBoxTypeConfig, AugmentationProfile
 
 
 class ContentGenerator:
@@ -85,24 +85,28 @@ class ContentGenerator:
         return TextLine(words=words)
 
     def _generate_word(self, font_size: float) -> Word:
-        """Generates a single word as a collection of points."""
-        # For simplicity, we model a "word" as a random number of "characters" (points).
-        num_chars = self.random.randint(3, 10)
-        points = []
-        current_x = 0
+            """Generates a single word as a collection of points."""
+            # For simplicity, we model a "word" as a random number of "characters" (points).
+            num_chars = self.random.randint(3, 10)
+            points = []
+            current_x = 0
 
-        char_spacing = sample_from_config(self.box_config.char_spacing, self.random) * font_size
+            char_spacing = sample_from_config(self.box_config.char_spacing, self.random) * font_size
 
-        for _ in range(num_chars):
-            # Apply point-level jitter (Phase 1 Augmentation)
-            jitter_std = sample_from_config(self.aug_config.point_level_jitter, self.random) * font_size
-            jitter_x = self.random.normalvariate(0, jitter_std)
-            jitter_y = self.random.normalvariate(0, jitter_std)
+            for _ in range(num_chars):
+                # Apply point-level jitter (Phase 1 Augmentation)
+                # --- THIS IS THE KEY CHANGE ---
+                # Sample the 'std' parameter first from its own distribution
+                jitter_std_factor = sample_from_config(self.aug_config.point_level_jitter.std, self.random)
+                jitter_std = jitter_std_factor * font_size
+                
+                jitter_x = self.random.normalvariate(0, jitter_std)
+                jitter_y = self.random.normalvariate(0, jitter_std)
 
-            points.append(Point(x=current_x + jitter_x, y=jitter_y, font_size=font_size))
-            current_x += char_spacing
-        
-        return Word(points=points)
+                points.append(Point(x=current_x + jitter_x, y=jitter_y, font_size=font_size))
+                current_x += char_spacing
+            
+            return Word(points=points)
     
     def _apply_text_alignment(self, text_lines: list[TextLine], box_width: float):
         """Applies horizontal alignment to all lines in a textbox."""

@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.augmentations import phase2_geometric, phase3_global
-from ..config.config_models import Config
+from src.config.config_models import Config
 
 class TestAugmentations(unittest.TestCase):
 
