@@ -36,9 +36,6 @@ These generators are designed to create the following challenging cases for layo
 -   **Goal**: Create a perfect grid of points where horizontal and vertical spacing are equal, making the reading order (horizontal vs. vertical) impossible to infer from spacing alone.
 -   **Generation**: Generate points at `(x_0 + i*S, y_0 + j*S)` for `i` in `range(N)` and `j` in `range(M)`, where `S` is the constant spacing.
 -   **Labeling Interpretation**: For each generated layout, please save input-label pairs for both interpretations of reading order.  Hence generate **two separate samples** from a single geometric arrangement.
-- **Augmentations**: For these layouts, only a subset of augmentations may be applied to the single, all-encompassing TextBox. The configuration file will specify an augmentation_profile: "ambiguous" for these layouts, which will be distinct from the default profile.
-Permitted Augmentations: Point-Level Jitter, Global Jitter, Point Dropout, and global rotation of the entire pattern. These introduce noise without providing strong directional cues.
-Forbidden Augmentations: Shear, Stretch, Warp/Curl, and Text Alignment. These geometric distortions would break the perfect grid/circular symmetry, defeating the purpose of the layout.
 #### Concentric Circles Layout
 -   **Goal**: Create points arranged in concentric circles where the spacing between points along a circle's circumference is approximately equal to the radial spacing between circles. This creates ambiguity between a "circular" reading order and a "radial" (spoke-like) reading order.
 -   **Generation**: To create true ambiguity between circular and radial readings, I suggest a "polar grid" approach:
@@ -46,7 +43,10 @@ Forbidden Augmentations: Shear, Stretch, Warp/Curl, and Text Alignment. These ge
 	2. **Define the spoke angles:** theta_k = k * (2*pi / K) for k from 0 to K-1. These angles are now constant for the entire layout.
 	3. **Iterate through radii:** For each radius r (from r_0 with step S), place one point at each of the K spoke angles.
 -   **Labeling Interpretation**:  For each generated layout, please save input-label pairs for both interpretations of reading order.  Hence generate **two separate samples** from a single geometric arrangement.
-- **Augmentations**: all augmentations for textboxes can OPTIONALLY be applied here too
+
+For these layouts, only a subset of augmentations may be applied to the single, all-encompassing TextBox. The configuration file will specify an augmentation_profile: "ambiguous" for these layouts, which will be distinct from the default profile.
+Permitted Augmentations: Point-Level Jitter, Global Jitter, Point Dropout, and global rotation of the entire pattern. These introduce noise without providing strong directional cues.
+Forbidden Augmentations: Shear, Stretch, Warp/Curl, and Text Alignment. These geometric distortions would break the perfect grid/circular symmetry, defeating the purpose of the layout.
 
 ---
 

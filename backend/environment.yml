@@ -37,4 +37,9 @@ dependencies:
       - regex
       - pyyaml 
       - shapely
+      - pydantic
+      - pyyaml
+      - typer[all]
+      - joblib
+      - tqdm
 
