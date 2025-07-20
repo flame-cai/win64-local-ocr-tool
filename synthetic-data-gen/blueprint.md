@@ -1,5 +1,8 @@
 You are an expert in Domain Randomization and synthetic data generation.
 This document outlines the specifications for a Python-based ablation friendly, modular synthetic data generator. The goal is to create diverse, script-agnostic page layouts of handwritten manuscripts for training and evaluating machine learning models for document layout analysis.
+
+Based on the below specification, please begin coding entire files. First print the directory structure and DO NOT SKIP any files. Pay special attention to the configuration files using Pydantic.
+
 Each character on a page is abstracted as a `Point` with three features: `(x, y, font_size)`. The generator will produce these point clouds along with corresponding ground-truth labels for textboxes and text lines, enabling supervised learning.
 The code should have classes for points (characters), words (a collection of points), text lines (a collection of words), and text box (a collection of text lines)
 
@@ -181,10 +184,12 @@ This hybrid workflow gives us the organizational clarity of OOP for complex layo
 ##  On the Overall Generation Flow
 
 Here is a high-level, step-by-step process for generating a single sample page, incorporating the hybrid workflow and resolving the identified logical issues.
+
 Initialization:
 Load and validate the configuration file (e.g., config.yaml) using Pydantic.
 Initialize the master random.Random object with a given seed. This single random state object will be passed to every function or class that requires stochasticity, ensuring perfect reproducibility.
 Initialize registries for layout strategies and augmentations.
+
 Strategy Selection & Page Setup:
 Sample a LayoutStrategy from the configuration (e.g., rejection_sampling, grid, concentric_circles).
 Sample the page width and height from the config.
@@ -204,6 +209,7 @@ a. Generate Geometry: A specialized generator function (e.g., generate_grid_geom
 b. Generate Label Interpretations: A corresponding function (e.g., generate_grid_labels) creates two sets of line_ids_local arrays: one for horizontal reading order (line_ids_horizontal) and one for vertical (line_ids_vertical).
 c. Apply Limited Augmentations (Phase 2): The AugmentationPipeline is called on points_local but is passed the "ambiguous" augmentation profile from the config. This applies only non-biasing augmentations (e.g., global rotation), returning points_local_distorted.
 d. Fork for Output: The process now "forks". It will proceed to the next steps twice, once with line_ids_horizontal and once with line_ids_vertical, ultimately creating two separate samples from the single distorted geometry.
+
 Page Assembly & Final Augmentations (Applied to Global Coords):
 Initialize lists for all points on the page: all_points_global = [], all_textbox_ids = [], all_textline_ids = [].
 A global_line_id_offset = 0 counter is initialized.
@@ -238,15 +244,97 @@ A function/class can be added to a registry using a simple decorator. This makes
 Core Implementation Strategy: From Logical Objects to Computational Arrays
 To achieve both conceptual clarity and high performance, the generator will be built on two foundational strategies: strict coordinate system management and a hybrid object-oriented/vectorized workflow.
 - **A Dataset Summary Report**
-Problem: After generating 100,000 samples, it's hard to know if the output distribution matches our intent.
-Suggestion: After a generation run, create a summary_report.md or summary.json in the root output directory. This report would contain aggregate statistics over the entire dataset:
+This report would contain aggregate statistics over the entire dataset:
 Histogram of textbox types generated.
 Distribution of page aspect ratios.
 Average/min/max points per page.
 Average number of textboxes per page.
 This provides a high-level sanity check on the generated data.
 
-Please begin coding
+
+
+synthetic_data_generator/
+├── README.md
+├── requirements.txt
+├── config/
+│   ├── __init__.py
+│   ├── default_config.yaml
+│   └── config_models.py
+├── src/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── cli.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── data_structures.py
+│   │   ├── coordinate_systems.py
+│   │   └── registries.py
+│   ├── generators/
+│   │   ├── __init__.py
+│   │   ├── content_generator.py
+│   │   ├── layout_strategies.py
+│   │   └── page_generator.py
+│   ├── augmentations/
+│   │   ├── __init__.py
+│   │   ├── phase1_content.py
+│   │   ├── phase2_geometric.py
+│   │   └── phase3_global.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── distribution_sampler.py
+│   │   ├── collision_detection.py
+│   │   ├── visualization.py
+│   │   └── validation.py
+│   └── io/
+│       ├── __init__.py
+│       └── file_writer.py
+├── scripts/
+│   ├── validate_sample.py
+│   ├── generate_dataset.py
+│   └── create_summary_report.py
+└── tests/
+    ├── __init__.py
+    ├── test_data_structures.py
+    ├── test_generators.py
+    └── test_augmentations.py
+Key Components Overview
+Core Components
+
+data_structures.py: Point, Word, TextLine, TextBox classes
+coordinate_systems.py: Coordinate transformation utilities
+registries.py: Plugin system for strategies and augmentations
+
+Generation Pipeline
+
+content_generator.py: Phase 1 content generation in OOP style
+layout_strategies.py: Different layout algorithms (rejection sampling, grid, concentric)
+page_generator.py: Main orchestration logic
+
+Augmentation Pipeline
+
+phase1_content.py: Text structure and micro-jitter augmentations
+phase2_geometric.py: Geometric distortions (shear, stretch, warp)
+phase3_global.py: Page-level augmentations (global jitter, dropout)
+
+Utilities
+
+distribution_sampler.py: YAML config to probability distribution sampling
+collision_detection.py: SAT-based OBB collision detection
+visualization.py: PNG rendering with optional debug overlays
+validation.py: Sample validation and integrity checks
+
+Configuration
+
+config_models.py: Pydantic models for type-safe configuration
+default_config.yaml: Complete default parameter definitions
+
+CLI & Scripts
+
+cli.py: Main CLI interface with dry-run, batch generation
+validate_sample.py: Standalone sample validation
+generate_dataset.py: Batch dataset generation
+create_summary_report.py: Dataset statistics and analysis
+
 
 
 

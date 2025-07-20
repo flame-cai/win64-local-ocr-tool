@@ -1,0 +1,369 @@
+# -----------------------------------------------------------------------------
+# Default Configuration for Synthetic Manuscript Layout Generator
+# -----------------------------------------------------------------------------
+# This file defines all parameters for the data generation process.
+# Parameters with a 'distribution' field are sampled for each instance.
+# Supported distributions: 'uniform', 'normal', 'choice'.
+
+seed: 42
+page_dimensions:
+  width:
+    distribution: "uniform"
+    min: 1000
+    max: 2000
+  height:
+    distribution: "uniform"
+    min: 1500
+    max: 2500
+
+# --- Layout Strategy Selection ---
+# One of the keys defined in `layout_strategies` will be chosen.
+layout_strategy_selection:
+  distribution: "choice"
+  choices:
+    - "rejection_sampling"
+    - "grid"
+    - "concentric_circles"
+  weights:
+    - 0.95  # 95% chance for standard layouts
+    - 0.025 # 2.5% for grid
+    - 0.025 # 2.5% for concentric
+
+# --- Layout Strategy Parameters ---
+layout_strategies:
+  # Strategy for placing textboxes with collision detection.
+  rejection_sampling:
+    max_placement_attempts: 100
+    # Defines the order and number of textboxes to place
+    generation_queue:
+      - box_type: "main_text"
+        count:
+          distribution: "uniform"
+          min: 1
+          max: 2
+      - box_type: "marginalia"
+        count:
+          distribution: "uniform"
+          min: 0
+          max: 3
+      - box_type: "page_number"
+        count:
+          distribution: "uniform"
+          min: 0
+          max: 1
+
+  # Strategy for creating ambiguous grid layouts.
+  grid:
+    rows:
+      distribution: "uniform"
+      min: 10
+      max: 20
+    cols:
+      distribution: "uniform"
+      min: 10
+      max: 20
+    spacing:
+      distribution: "uniform"
+      min: 40
+      max: 60
+
+  # Strategy for creating ambiguous concentric circle layouts.
+  concentric_circles:
+    num_spokes:
+      distribution: "uniform"
+      min: 12
+      max: 24
+    num_circles:
+      distribution: "uniform"
+      min: 8
+      max: 15
+    radial_step:
+      distribution: "uniform"
+      min: 40
+      max: 60
+    start_radius:
+      distribution: "uniform"
+      min: 80
+      max: 120
+
+
+# --- TextBox Type Definitions ---
+# These parameters control the content and initial shape of each textbox type.
+textbox_types:
+  main_text:
+    width:
+      distribution: "uniform"
+      min: 400
+      max: 800
+    height:
+      distribution: "uniform"
+      min: 600
+      max: 1200
+    orientation_deg:
+      distribution: "uniform"
+      min: -5
+      max: 5
+    # Phase 1: Content Generation
+    font_size:
+      distribution: "uniform"
+      min: 20
+      max: 30
+    char_spacing:
+      distribution: "uniform"
+      min: 0.8
+      max: 1.5
+    word_spacing:
+      distribution: "uniform"
+      min: 3.0
+      max: 5.0
+    line_spacing: # Leading
+      distribution: "uniform"
+      min: 1.8
+      max: 2.5
+    words_per_line:
+      distribution: "uniform"
+      min: 5
+      max: 15
+    lines_per_box:
+      distribution: "uniform"
+      min: 10
+      max: 30
+    alignment:
+      distribution: "choice"
+      choices: ["left", "right", "center", "justify"]
+    # Probability of generating an interlinear gloss for this text box
+    interlinear_gloss_probability: 0.1
+
+  marginalia:
+    width:
+      distribution: "uniform"
+      min: 150
+      max: 300
+    height:
+      distribution: "uniform"
+      min: 200
+      max: 600
+    orientation_deg:
+      distribution: "uniform"
+      min: -45
+      max: 45
+    font_size:
+      distribution: "uniform"
+      min: 15
+      max: 20
+    char_spacing:
+      distribution: "uniform"
+      min: 1.0
+      max: 1.8
+    word_spacing:
+      distribution: "uniform"
+      min: 2.5
+      max: 4.0
+    line_spacing:
+      distribution: "uniform"
+      min: 1.5
+      max: 2.2
+    words_per_line:
+      distribution: "uniform"
+      min: 3
+      max: 8
+    lines_per_box:
+      distribution: "uniform"
+      min: 5
+      max: 15
+    alignment:
+      distribution: "choice"
+      choices: ["left", "right", "center"]
+    interlinear_gloss_probability: 0.0 # No gloss on marginalia
+
+  page_number:
+    width:
+      distribution: "uniform"
+      min: 50
+      max: 100
+    height:
+      distribution: "uniform"
+      min: 40
+      max: 80
+    orientation_deg:
+      distribution: "uniform"
+      min: -10
+      max: 10
+    font_size:
+      distribution: "uniform"
+      min: 25
+      max: 35
+    char_spacing:
+      distribution: "uniform"
+      min: 1.2
+      max: 1.5
+    word_spacing:
+      distribution: "uniform"
+      min: 1.0 # Not really used for single word
+      max: 1.0
+    line_spacing:
+      distribution: "uniform"
+      min: 1.5
+      max: 1.5
+    words_per_line:
+      distribution: "uniform"
+      min: 1
+      max: 1
+    lines_per_box:
+      distribution: "uniform"
+      min: 1
+      max: 1
+    alignment:
+      distribution: "choice"
+      choices: ["center"]
+    interlinear_gloss_probability: 0.0
+
+  interlinear_gloss:
+    # width/height are relative to parent line's font size
+    width_factor:
+      distribution: "uniform"
+      min: 3.0
+      max: 8.0
+    height_factor:
+      distribution: "uniform"
+      min: 1.2
+      max: 1.5
+    orientation_deg: 0 # Relative to parent line
+    font_size_factor: # Relative to parent line
+      distribution: "uniform"
+      min: 0.4
+      max: 0.6
+    char_spacing:
+      distribution: "uniform"
+      min: 0.8
+      max: 1.2
+    word_spacing:
+      distribution: "uniform"
+      min: 2.0
+      max: 3.0
+    line_spacing:
+      distribution: "uniform"
+      min: 1.2
+      max: 1.4
+    words_per_line:
+      distribution: "uniform"
+      min: 1
+      max: 3
+    lines_per_box:
+      distribution: "uniform"
+      min: 1
+      max: 1
+    alignment:
+      distribution: "choice"
+      choices: ["center"]
+    # Positional offset relative to parent line
+    vertical_offset_factor: # in units of parent font size
+      distribution: "uniform"
+      min: -1.0
+      max: -0.5
+    horizontal_offset_factor: # in units of parent line width
+      distribution: "uniform"
+      min: 0.2
+      max: 0.8
+
+
+# --- Augmentation Profiles ---
+# Defines sets of augmentations to be applied.
+augmentation_profiles:
+  default:
+    # Phase 1: Applied during content generation (parameters are per-textbox)
+    line_break_prob: 0.05
+    line_level_font_size_variation:
+      distribution: "normal"
+      mean: 0.0
+      std: 0.05 # 5% variation
+    point_level_jitter:
+      distribution: "normal"
+      mean: 0.0
+      std: 0.05 # 5% of font size
+
+    # Phase 2: Applied to textbox point cloud (before placing on page)
+    shear:
+      prob: 0.5
+      x_factor:
+        distribution: "uniform"
+        min: -0.3
+        max: 0.3
+      y_factor:
+        distribution: "uniform"
+        min: -0.3
+        max: 0.3
+    stretch:
+      prob: 0.5
+      x_factor:
+        distribution: "uniform"
+        min: 0.8
+        max: 1.2
+      y_factor:
+        distribution: "uniform"
+        min: 0.8
+        max: 1.2
+    warp: # Simulates page curl
+      prob: 0.6
+      amplitude:
+        distribution: "uniform"
+        min: 0.01
+        max: 0.05 # As a fraction of textbox dimension
+      frequency:
+        distribution: "uniform"
+        min: 0.5
+        max: 2.0
+      axis:
+        distribution: "choice"
+        choices: ["x", "y"]
+
+    # Phase 3: Applied to final page point cloud
+    point_dropout:
+      prob: 0.01 # Probability of dropping any single point
+    global_jitter:
+      distribution: "normal"
+      mean: 0.0
+      std: 1.5 # small absolute pixel value
+
+  # Special profile for ambiguous layouts to preserve symmetry
+  ambiguous:
+    line_break_prob: 0.0 # No line breaks
+    line_level_font_size_variation:
+      distribution: "normal"
+      mean: 0.0
+      std: 0.0
+    point_level_jitter:
+      distribution: "normal"
+      mean: 0.0
+      std: 0.05 # Keep small jitter
+    
+    # Disable geometric distortions that break symmetry
+    shear:
+      prob: 0.0
+    stretch:
+      prob: 0.0
+    warp:
+      prob: 0.0
+
+    # Page-level augmentations
+    point_dropout:
+      prob: 0.01
+    global_jitter:
+      distribution: "normal"
+      mean: 0.0
+      std: 0.5 # smaller jitter
+
+# --- Visualization Settings ---
+visualization:
+  enabled: true # Master switch for generating PNGs
+  draw_obbs: true
+  draw_textlines: true
+  dpi: 150
+  point_size: 2
+  # Color map for different textbox types. Add more as needed.
+  color_map:
+    main_text: "blue"
+    marginalia: "green"
+    page_number: "red"
+    interlinear_gloss: "purple"
+    default: "black"
