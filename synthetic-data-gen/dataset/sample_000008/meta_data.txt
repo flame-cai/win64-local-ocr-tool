@@ -1,15 +1,16 @@
 sample_id: sample_000008
 page_width: 2429
 page_height: 2668
-num_points: 2081
-num_textboxes: 7
-num_textlines: 46
+num_points: 2464
+num_textboxes: 8
+num_textlines: 56
 
 --- TextBoxes ---
   - id: 0, type: interlinear_gloss, orientation: 0.00, num_points: 43
-  - id: 1, type: main_text, orientation: -90.00, num_points: 477
-  - id: 2, type: marginalia, orientation: 0.00, num_points: 82
-  - id: 3, type: main_text, orientation: 0.00, num_points: 543
-  - id: 4, type: main_text, orientation: -90.00, num_points: 317
-  - id: 5, type: main_text, orientation: 0.00, num_points: 577
-  - id: 6, type: interlinear_gloss, orientation: 90.00, num_points: 43
+  - id: 1, type: main_text, orientation: 0.00, num_points: 477
+  - id: 2, type: main_text, orientation: 0.00, num_points: 267
+  - id: 3, type: main_text, orientation: 0.00, num_points: 230
+  - id: 4, type: main_text, orientation: 0.00, num_points: 486
+  - id: 5, type: main_text, orientation: 0.00, num_points: 394
+  - id: 6, type: interlinear_gloss, orientation: 0.00, num_points: 41
+  - id: 7, type: main_text, orientation: 0.00, num_points: 582

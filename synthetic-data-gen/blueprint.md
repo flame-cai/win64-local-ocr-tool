@@ -199,6 +199,10 @@ This report would contain aggregate statistics over the entire dataset:
 This provides a high-level sanity check on the generated data.
 
 
+- the main text is always there (one or more)
+- sometime we have others pg no, marginalia etc...
+
+
 
  please study this in depth the following and ask me if you have any doubts, clarifications:
 - Please think about the implementation details and the perfect flow of generation.

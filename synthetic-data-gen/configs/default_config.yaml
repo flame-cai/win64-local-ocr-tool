@@ -59,7 +59,7 @@ grid_layout:
 textbox_content:
   # Base parameters per textbox type
   main_text:
-    font_size: { dist: "uniform_int", min: 20, max: 35 }
+    font_size: { dist: "uniform_int", min: 10, max: 50 }
     lines_per_box: { dist: "uniform_int", min: 5, max: 25 }
     words_per_line: { dist: "uniform_int", min: 1, max: 1 }
     alignment: { dist: "choice", choices: ["left", "right", "center", "justify"], weights: [0.4, 0.1, 0.1, 0.4] }
@@ -85,8 +85,6 @@ textbox_content:
   #   dist: "choice"
   #   choices: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
   #   weights: [0.10, 0.15, 0.20, 0.15, 0.12, 0.08, 0.06, 0.05, 0.03, 0.02, 0.01, 0.01, 0.01]
-
-
   # Spacing is defined as a multiplier of the base font_size
   character_spacing_factor: { dist: "uniform_float", min: 0.8, max: 1.5 }
   word_spacing_factor: { dist: "uniform_float", min: 2.0, max: 4.0 }

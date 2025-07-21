@@ -1,9 +1,9 @@
 sample_id: sample_000007
 page_width: 2704
 page_height: 2187
-num_points: 336
+num_points: 971
 num_textboxes: 1
-num_textlines: 8
+num_textlines: 22
 
 --- TextBoxes ---
-  - id: 0, type: marginalia, orientation: -8.83, num_points: 344
+  - id: 0, type: main_text, orientation: -96.20, num_points: 986
