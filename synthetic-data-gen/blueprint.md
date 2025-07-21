@@ -4,7 +4,7 @@ This document outlines the specifications for a Python-based ablation friendly, 
 Each character on a page is abstracted as a `Point` with three features: `(x, y, font_size)`. The generator will produce these point clouds along with corresponding ground-truth labels for textboxes and text lines, enabling supervised learning.
 The code should have classes for points (characters), words (a collection of points), text lines (a collection of words), and text box (a collection of text lines)
 
-Please study this blueprint, and think about an fast and efficient, step-by-step process for generating sample pages (perhaps many pages at once in parallel), without compromising on any functionality. Please decide the directory structure, and code ENTIRE files without skipping any.
+Please study this blueprint, and think about an fast and efficient, step-by-step process for generating sample pages (perhaps many pages at once in parallel), without compromising on any functionality. Please decide the directory structure, and code ENTIRE files without skipping any. Please DO NOT make the codebase a CLI, just python code.
 
 Class Definitions
 -   **`Point(x, y, font_size)`**: The fundamental unit. Stores unnormalized local coordinates and font size.
@@ -93,6 +93,7 @@ Each of these augmentations is controlled by a probability of being applied an
 This final phase is applied after all textboxes have been generated, distorted, and placed at their final position and orientation on the page. These augmentations affect the entire point cloud and can create interactions between different textboxes.
 
 - **Textbox Placement & Orientation:** While not strictly an augmentation, the layout strategy's placement of textboxes (with randomized positions and orientations) is the primary page-level variation.
+Text box orientations can be 0 +-45 degrees, 90 +-45 degrees, -90 +-45 degrees to the page x-axis. 0, 90, -90 should be much more common orientations thought.
     
 - **Interlinear Gloss Placement:** A special case where a small interlinear_gloss textbox is probabilistically generated and its position is calculated relative to a specific text line within the main_text box. It can be placed above or below a text line.
     
@@ -101,28 +102,23 @@ This final phase is applied after all textboxes have been generated, distorted, 
 
 
 ## To generate random layouts we can use the following layout generation strategies: 
-One of the below layout generation strategies (rejection_sampling, grid, concentric) can be configured in the config file. We should also be able to add other strategies in the future.
+One of the below layout generation strategies (rejection_sampling, grid) can be configured in the config file. We should also be able to add other strategies in the future.
 ### 1) Rejection Sampling
 First generate text boxes and perform augmentations on it, and then draw a polygon (Convex hull of all points) around it. When checking if two textboxes overlap, we should check if the polygons overlap (they can touch or be very close to each other, but no ovelap)
-For example, for a TextBox we first do the Phase 1 and Phase 2 Augmentations. Then we do the Page level Phase 3 augmentation of Textbox Placement & Orientation. If the final location of the polygon of this TextBox Overlaps with existing Textboxe polygon, we can do the Phase 3 augmentation of Textbox Placement & Orientation again, and check again. If it still fails after N number of times, THEN perhaps we attempt again from scratch with a fresh TextBox.
+For example, for a TextBox we first do the Phase 1 and Phase 2 Augmentations. Then we do the Page level Phase 3 augmentation of Textbox Placement & Orientation. If the final location of the polygon of this TextBox Overlaps with existing Textboxe polygon, we can do the Phase 3 augmentation of Textbox Placement & Orientation again, and check again. If it still fails after N number of times, THEN perhaps we attempt again K times from scratch with a fresh TextBox.
+We want some pages to have only one main textbox, but we also watch some pages to be really dense. Hence the number of (N and K) attempts to try to fit a TextBox can also vary from page to page.
 Also have Page boundary checks to ensure textboxes don't extend outside page dimensions.
 
 ### 2) special ambiguous layouts: 
 These generators are designed to create the following challenging cases for layout analysis algorithms by making local neighbor relationships ambiguous. In other words, based only on the coordinates of the points of these layouts, two reading orders can be interpreted.
+These layouts should be independent of Rejection Sampling approach. We only want one grid per page in this case.
 
 For these layouts, only apply the Point-Level Jitter, Font Size Variation, Point Dropout and Rotation augmentations. Do not apply any other augmentations.
 #### Grid Layout
 -   **Goal**: Create a perfect grid of points where horizontal and vertical spacing are equal, making the reading order (horizontal vs. vertical) impossible to infer from spacing alone.
 -   **Generation**: Generate points at `(x_0 + i*S, y_0 + j*S)` for `i` in `range(N)` and `j` in `range(M)`, where `S` is the constant spacing.
 -   **Labeling Interpretation**: For each generated layout, please save input-label pairs for both interpretations of reading order. Hence generate **two separate input-label data points with completely separate IDs** from a single geometric arrangement.
-#### Concentric Circles Layout
--   **Goal**: Create points arranged in concentric circles where the spacing between points along a circle's circumference is approximately equal to the radial spacing between circles. This creates ambiguity between a "circular" reading order and a "radial" (spoke-like) reading order.
--   **Generation**: To create true ambiguity between circular and radial readings, I suggest a "polar grid" approach:
-	1. **Fix the number of spokes (radial lines), K.** This will be a randomized parameter.
-	2. **Define the spoke angles:** theta_k = k * (2*pi / K) for k from 0 to K-1. These angles are now constant for the entire layout.
-	3. **Iterate through radii:** For each radius r (from r_0 with step S), place one point at each of the K spoke angles.
--   **Labeling Interpretation**:  For each generated layout, please save input-label pairs for both interpretations of reading order. Hence generate **two separate input-label data points with completely separate IDs** from a single geometric arrangement.
-These layouts should be independent of Rejection Sampling approach. We only want one grid or concentric circles per page in this case.
+
 
 
 ## INPUTS and LABELS
@@ -135,9 +131,13 @@ For each sample page, a directory `{sample_id}` is created with:
     -   `font_size_norm`: Font size divided by page height.
 -   **`labels_textbox.txt`**: `textbox_id` (integer).
 -   **`labels_textline.txt`**: `textline_id` (globally unique integer).
--   **`{sample_id}.png`**: Visualization of the page, color-coded by textbox ID. (Before we generate millions of data points, we should optionally be able visualize and save images of a small number of data points just to verify if the code is working.) We also want optional rendering flags (controlled via config) to color all points on the same text line with the same color, and set the size of the points as per the font size.
+-   **`{sample_id}.png`**: Visualization of the page (Before we generate millions of data points, we should optionally be able visualize and save images of a small number of data points just to verify if the code is working.) 
+We also want optional rendering flags (controlled via config):
+ - color-coded by textboxes on a page (all points in a text box the same color)
+ - color-coded by text lines on a page (all points in a text line the same color)
+ In both cases, the size of the points as per the font size. Also please mark the borders of the page as black. And use bold colorblind friendly contrasting colors: '#ffe119', '#4363d8', '#f58231', '#dcbeff', '#800000', '#000075', '#a9a9a9', '#ffffff', '#000000'
 
-Ambiguous Layout Labeling: For the Grid and Concentric layouts, we can treat the entire grid/concentric circles as a single TextBox, and then each row/column or circle/spoke can be labelled as TextLine. For each one of such generated layouts we want to save two data points, with everything but the labels different. It's okay if the input txt files are duplicate.
+Ambiguous Layout Labeling: For the Grid layouts, we can treat the entire grid as a single TextBox, and then each row/column can be labelled as TextLine. For each one of such generated layouts we want to save two data points, with everything but the labels different. It's okay if the input txt files are duplicate.
 
 for example input_unnormalized.txt should look like this (with x, y, and font_size)
 
@@ -197,12 +197,6 @@ This report would contain aggregate statistics over the entire dataset:
 - Average/min/max points per page.
 - Average number of textboxes per page.
 This provides a high-level sanity check on the generated data.
-
-
-
-
-
-
 
 
 
