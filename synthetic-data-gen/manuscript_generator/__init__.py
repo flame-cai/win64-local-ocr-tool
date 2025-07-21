@@ -1,0 +1,1 @@
+# This file marks the 'manuscript_generator' directory as a Python package.

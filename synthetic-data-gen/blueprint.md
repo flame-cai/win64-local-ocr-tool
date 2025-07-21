@@ -4,7 +4,7 @@ This document outlines the specifications for a Python-based ablation friendly, 
 Each character on a page is abstracted as a `Point` with three features: `(x, y, font_size)`. The generator will produce these point clouds along with corresponding ground-truth labels for textboxes and text lines, enabling supervised learning.
 The code should have classes for points (characters), words (a collection of points), text lines (a collection of words), and text box (a collection of text lines)
 
-DO NOT start coding yet. First study this blueprint and think about an fast and efficient, step-by-step process for generating a single sample page (perhaps many pages at once in parallel), without compromising on any functionality. Please write this process as an extension of the prompt. Format your answer such that I can copy it as a .md file.
+Please study this blueprint, and think about an fast and efficient, step-by-step process for generating sample pages (perhaps many pages at once in parallel), without compromising on any functionality. Please decide the directory structure, and code ENTIRE files without skipping any.
 
 Class Definitions
 -   **`Point(x, y, font_size)`**: The fundamental unit. Stores unnormalized local coordinates and font size.

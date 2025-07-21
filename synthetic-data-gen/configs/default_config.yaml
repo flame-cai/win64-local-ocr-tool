@@ -1,0 +1,109 @@
+# Global Generation Settings
+generation:
+  seed: 42
+  num_samples: 100
+  num_workers: -1 # -1 means use all available CPU cores
+  output_dir: "output"
+  dry_run: false # If true, generates 10 samples with visualization, ignores num_samples
+
+# Page-level Parameters
+page:
+  width: { type: 'uniform', min: 2000, max: 3000 }
+  height: { type: 'uniform', min: 3000, max: 4000 }
+  # Probability of generating an interlinear gloss for a main_text textbox
+  interlinear_gloss_prob: 0.15
+
+# Layout Strategy Selection
+layout:
+  strategy: 'rejection_sampling' # One of: rejection_sampling, grid, concentric
+  # --- Settings for Rejection Sampling ---
+  rejection_sampling:
+    num_textboxes: { type: 'randint', low: 2, high: 7 }
+    max_placement_attempts: 20 # Attempts to place a textbox before giving up
+    max_generation_attempts: 5 # Attempts to generate a non-overlapping textbox from scratch
+    allow_overlap: false # If polygons can overlap
+    # Probabilities for each textbox type
+    textbox_type_probs:
+      main_text: 0.6
+      marginalia: 0.3
+      page_number: 0.1
+  # --- Settings for Ambiguous Layouts ---
+  grid:
+    rows: { type: 'randint', low: 10, high: 20 }
+    cols: { type: 'randint', low: 10, high: 20 }
+    spacing: { type: 'uniform', min: 50, max: 100 }
+  concentric:
+    num_spokes: { type: 'randint', low: 8, high: 16 }
+    num_circles: { type: 'randint', low: 8, high: 16 }
+    radius_step: { type: 'uniform', min: 50, max: 100 }
+    start_radius: { type: 'uniform', min: 100, max: 200 }
+
+# Textbox Type Definitions
+textboxes:
+  main_text:
+    font_size: { type: 'uniform', min: 25, max: 35 }
+    lines_per_box: { type: 'randint', low: 5, high: 25 }
+    words_per_line: { type: 'randint', low: 3, high: 10 }
+    text_alignment: 'justify' # One of: left, right, center, justify
+  marginalia:
+    font_size: { type: 'uniform', min: 15, max: 22 }
+    lines_per_box: { type: 'randint', low: 2, high: 8 }
+    words_per_line: { type: 'randint', low: 2, high: 5 }
+    text_alignment: 'left'
+  page_number:
+    font_size: { type: 'uniform', min: 20, max: 30 }
+    lines_per_box: { type: 'randint', low: 1, high: 1 }
+    words_per_line: { type: 'randint', low: 1, high: 1 }
+    text_alignment: 'center'
+  interlinear_gloss:
+    font_size: { type: 'uniform', min: 12, max: 18 }
+    lines_per_box: { type: 'randint', low: 1, high: 1 }
+    words_per_line: { type: 'randint', low: 1, high: 3 }
+    text_alignment: 'center'
+
+# Phase 1: Content & Micro-Variations
+augmentations_phase1:
+  # Base spacing, will be jittered
+  character_spacing: { type: 'uniform', min: 0.8, max: 1.2 } # Multiplier of font_size
+  word_spacing: { type: 'uniform', min: 2.5, max: 4.0 } # Multiplier of font_size
+  line_spacing: { type: 'uniform', min: 1.5, max: 2.5 } # Multiplier of font_size
+  # Point-level imperfections
+  font_size_variation: { type: 'normal', mean: 0.0, std: 0.05 } # Proportional change
+  point_jitter: { type: 'normal', mean: 0.0, std: 1.5 } # Absolute pixel jitter
+  # Probability of introducing a line break within a logical line
+  line_break_prob: 0.05
+  # Simulates rushed/congested writing
+  congestion_jitter:
+    enable: true
+    probability: 0.05 # % of points to be aggressively jittered
+    strength: { type: 'uniform', min: 0.8, max: 1.5 } # Jitter strength as a multiplier of line spacing
+
+# Phase 2: Geometric Distortions (applied per textbox)
+augmentations_phase2:
+  shear:
+    prob: 0.5
+    factor_x: { type: 'uniform', min: -0.3, max: 0.3 }
+    factor_y: { type: 'uniform', min: -0.3, max: 0.3 }
+  stretch:
+    prob: 0.5
+    factor_x: { type: 'uniform', min: 0.8, max: 1.2 }
+    factor_y: { type: 'uniform', min: 0.8, max: 1.2 }
+  warp:
+    prob: 0.6
+    amplitude_x: { type: 'uniform', min: 0, max: 15 }
+    frequency_x: { type: 'uniform', min: 0.001, max: 0.005 }
+    amplitude_y: { type: 'uniform', min: 0, max: 15 }
+    frequency_y: { type: 'uniform', min: 0.001, max: 0.005 }
+
+# Phase 3: Page-Level Augmentations
+augmentations_phase3:
+  point_dropout:
+    prob: 0.01 # Probability of removing any single point from the page
+
+# Output & Visualization Settings
+output:
+  visualize: false
+  dpi: 150
+  point_size_multiplier: 0.1
+  color_by: 'textbox'
+  background_color: 'white'
