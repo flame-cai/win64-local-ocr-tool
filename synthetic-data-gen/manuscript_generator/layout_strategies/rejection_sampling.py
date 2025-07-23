@@ -84,47 +84,5 @@ def generate_rejection_sampling_layout(config: Config, rng: np.random.Generator)
             if placed:
                 break
     
-    add_glosses(page, config, rng)
+
     return [page]
-
-def add_glosses(page: Page, config: Config, rng: np.random.Generator):
-    """Adds interlinear glosses relative to existing main_text lines."""
-    gloss_config = config.textbox_content.interlinear_gloss
-    main_text_boxes = [box for box in page.textboxes if box.box_type == TextBoxType.MAIN_TEXT]
-    if not main_text_boxes:
-        return
-
-    for main_box in main_text_boxes:
-        if main_box.line_ids_local is None or main_box.line_ids_local.size == 0:
-            continue
-        unique_lines = np.unique(main_box.line_ids_local)
-        for line_id in unique_lines:
-            if rng.random() < gloss_config.probability:
-                gloss_box = create_textbox(TextBoxType.INTERLINEAR_GLOSS, config, rng)
-                if gloss_box.points_local is None or gloss_box.points_local.shape[0] == 0:
-                    continue
-
-                line_points_local = main_box.points_local[main_box.line_ids_local == line_id]
-                if line_points_local.shape[0] == 0: continue
-
-                line_center_local = np.mean(line_points_local[:, :2], axis=0)
-                
-                rot_matrix = get_rotation_matrix(main_box.orientation_deg)
-                line_center_global = line_center_local @ rot_matrix.T + main_box.position
-
-                offset_dist = (gloss_box.height / 2 if gloss_box.height else 10) * sample_from_distribution(gloss_config.position_offset, rng)
-                direction = rng.choice([-1, 1])
-                
-                offset_vector = np.array([0, direction * offset_dist]) @ rot_matrix.T
-
-                gloss_box.position = line_center_global + offset_vector
-                gloss_box.orientation_deg = main_box.orientation_deg
-                gloss_box.transform_to_global()
-                
-                has_overlap = False
-                for existing_box in page.textboxes:
-                    if check_overlap(gloss_box.hull_global, existing_box.hull_global):
-                        has_overlap = True
-                        break
-                if not has_overlap:
-                    page.textboxes.append(gloss_box)

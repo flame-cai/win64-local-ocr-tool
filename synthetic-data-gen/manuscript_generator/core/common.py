@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 class StrEnum(str, Enum):
     """Enum where members are also strings."""
@@ -13,7 +13,6 @@ class TextBoxType(StrEnum):
     MAIN_TEXT = "main_text"
     MARGINALIA = "marginalia"
     PAGE_NUMBER = "page_number"
-    INTERLINEAR_GLOSS = "interlinear_gloss"
     GRID = "grid" # For ambiguous layouts
 
 class TextAlignment(StrEnum):
@@ -38,3 +37,4 @@ class Word:
 class TextLine:
     """A collection of Word objects."""
     words: List[Word] = field(default_factory=list)
+    interlinear_gloss: Optional[List[Word]] = None

@@ -35,20 +35,23 @@ class TextBox:
     hull_global: Optional[Polygon] = None
 
     def consolidate_to_numpy(self):
-        """
-        The "Consolidation" Step.
-        Traverses the object structure (TextLine -> Word -> Point) and flattens
-        all character data into efficient NumPy arrays in local coordinates.
-        Also calculates initial width and height.
-        """
         points_list = []
         line_ids_list = []
         
         for line_idx, text_line in enumerate(self.text_lines):
+            # Add points from the main line
             for word in text_line.words:
                 for point in word.points:
                     points_list.append([point.x, point.y, point.font_size])
                     line_ids_list.append(line_idx)
+            
+            # --- NEW: Add points from the interlinear gloss, if it exists ---
+            if text_line.interlinear_gloss:
+                for word in text_line.interlinear_gloss:
+                    for point in word.points:
+                        points_list.append([point.x, point.y, point.font_size])
+                        # The gloss belongs to the same logical textline
+                        line_ids_list.append(line_idx)
         
         if not points_list:
             self.points_local = np.empty((0, 3))
@@ -110,7 +113,7 @@ class TextBox:
         self.hull_global = get_convex_hull(self.points_global)
 
 def _create_text_lines(box_config: dict, content_config: Config, rng: np.random.Generator) -> Tuple[List[TextLine], float, float]:
-    """Helper to generate the raw text lines for a textbox."""
+    """Helper to generate the raw text lines for a textbox, including interlinear glosses."""
     lines_per_box = sample_from_distribution(box_config.lines_per_box, rng)
     base_font_size = sample_from_distribution(box_config.font_size, rng)
     
@@ -121,32 +124,52 @@ def _create_text_lines(box_config: dict, content_config: Config, rng: np.random.
     text_lines = []
     max_line_width = 0
     current_y = 0
+    
+    # Check if this textbox type can have glosses
+    has_gloss_prob = getattr(box_config, 'interlinear_gloss_probability', 0)
 
     for _ in range(lines_per_box):
+        # --- Generate the main line of text ---
         words_per_line = sample_from_distribution(box_config.words_per_line, rng)
         current_x = 0
-        words = []
-        
+        main_words = []
         for _ in range(words_per_line):
-            # For simplicity, we model a word as a single point cloud.
-            # In a real scenario, this would come from a text corpus.
-            # Here, we just generate a random number of characters.
-            # chars_in_word = rng.integers(3, 10)
             chars_in_word = sample_from_distribution(content_config.chars_per_word, rng)
-            points = []
-            for _ in range(chars_in_word):
-                # We use the base font size here; variation is an augmentation.
-                points.append(Point(x=current_x, y=current_y, font_size=base_font_size))
-                current_x += char_spacing
-            
-            words.append(Word(points=points))
-            current_x += word_spacing
+            points = [Point(x=current_x + i * char_spacing, y=current_y, font_size=base_font_size) for i in range(chars_in_word)]
+            current_x += (chars_in_word * char_spacing) + word_spacing
+            main_words.append(Word(points=points))
         
-        text_lines.append(TextLine(words=words))
-        if (current_x - word_spacing) > max_line_width:
-            max_line_width = current_x - word_spacing
+        line_width = current_x - word_spacing
+        if line_width > max_line_width:
+            max_line_width = line_width
+            
+        text_line = TextLine(words=main_words)
 
-        current_y -= line_spacing # Move to the next line (y decreases downwards)
+        # --- Generate and place the gloss, if applicable ---
+        if rng.random() < has_gloss_prob:
+            gloss_config = content_config.interlinear_gloss
+            gloss_font_size = base_font_size * sample_from_distribution(gloss_config.font_size_factor, rng)
+            gloss_char_spacing = gloss_font_size * sample_from_distribution(content_config.character_spacing_factor, rng)
+            gloss_word_spacing = gloss_font_size * sample_from_distribution(content_config.word_spacing_factor, rng)
+            
+            # Position the gloss vertically between the current line and the next.
+            # We add the gloss *before* advancing the main `current_y`.
+            y_offset_factor = sample_from_distribution(gloss_config.vertical_offset_factor, rng)
+            gloss_y = current_y - (line_spacing * y_offset_factor)
+
+            gloss_words = []
+            gloss_current_x = 0 # Gloss is left-aligned relative to the line start
+            gloss_words_per_line = sample_from_distribution(gloss_config.words_per_line, rng)
+            for _ in range(gloss_words_per_line):
+                chars_in_word = sample_from_distribution(content_config.chars_per_word, rng)
+                points = [Point(x=gloss_current_x + i * gloss_char_spacing, y=gloss_y, font_size=gloss_font_size) for i in range(chars_in_word)]
+                gloss_current_x += (chars_in_word * gloss_char_spacing) + gloss_word_spacing
+                gloss_words.append(Word(points=points))
+
+            text_line.interlinear_gloss = gloss_words
+
+        text_lines.append(text_line)
+        current_y -= line_spacing # Move to the next line
         
     return text_lines, max_line_width, (abs(current_y) - line_spacing)
 
