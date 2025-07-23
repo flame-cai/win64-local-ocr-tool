@@ -75,12 +75,10 @@ textbox_content:
     words_per_line: { dist: "uniform_int", min: 1, max: 3 }
     alignment: { dist: "choice", choices: ["left", "right", "center"], weights: [0.3, 0.3, 0.4] }
   interlinear_gloss:
-    font_size: { dist: "uniform_int", min: 10, max: 15 }
-    lines_per_box: { dist: "constant", value: 1 }
-    words_per_line: { dist: "uniform_int", min: 1, max: 1 }
-    alignment: { dist: "constant", value: "left" }
-    probability: 0.3 # Probability of adding a gloss to a main_text line
-    position_offset: { dist: "uniform_float", min: 1.1, max: 1.5 } # Multiplier of gloss font_size
+    font_size_factor: { dist: "uniform_float", min: 0.5, max: 0.7 } 
+    words_per_line: { dist: "uniform_int", min: 1, max: 5 }
+    vertical_offset_factor: { dist: "uniform_float", min: 0.4, max: 0.8 }
+
   chars_per_word: { dist: "uniform_int", min: 40, max: 50 }
   # chars_per_word:
   #   dist: "choice"

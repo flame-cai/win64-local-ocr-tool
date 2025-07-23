@@ -1,12 +1,13 @@
 sample_id: sample_000000
 page_width: 1803
 page_height: 1087
-num_points: 1037
-num_textboxes: 4
-num_textlines: 23
+num_points: 1646
+num_textboxes: 5
+num_textlines: 36
 
 --- TextBoxes ---
-  - id: 0, type: marginalia, orientation: -2.80, num_points: 269
-  - id: 1, type: main_text, orientation: 0.00, num_points: 416
-  - id: 2, type: main_text, orientation: 0.00, num_points: 233
-  - id: 3, type: marginalia, orientation: 0.00, num_points: 133
+  - id: 0, type: marginalia, orientation: -2.80, num_points: 267
+  - id: 1, type: main_text, orientation: 0.00, num_points: 456
+  - id: 2, type: main_text, orientation: 0.00, num_points: 482
+  - id: 3, type: marginalia, orientation: 0.00, num_points: 130
+  - id: 4, type: main_text, orientation: 0.00, num_points: 326

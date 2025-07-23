@@ -1,12 +1,12 @@
 sample_id: sample_000009
 page_width: 1513
 page_height: 2149
-num_points: 2224
+num_points: 2181
 num_textboxes: 4
-num_textlines: 51
+num_textlines: 45
 
 --- TextBoxes ---
-  - id: 0, type: main_text, orientation: -63.97, num_points: 437
-  - id: 1, type: main_text, orientation: 0.00, num_points: 745
-  - id: 2, type: interlinear_gloss, orientation: 90.00, num_points: 50
-  - id: 3, type: main_text, orientation: 0.00, num_points: 1024
+  - id: 0, type: main_text, orientation: -48.18, num_points: 525
+  - id: 1, type: main_text, orientation: 0.00, num_points: 1074
+  - id: 2, type: page_number, orientation: 103.25, num_points: 44
+  - id: 3, type: main_text, orientation: 95.38, num_points: 566
