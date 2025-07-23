@@ -4,7 +4,7 @@
 generation:
   num_samples: 10
   num_workers: -1 # -1 means use all available CPU cores
-  base_seed: 42
+  base_seed: 43
   output_dir: "./dataset"
   dry_run_num_samples: 10 # Number of samples for a dry run
 

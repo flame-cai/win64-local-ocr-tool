@@ -1,0 +1,9 @@
+sample_id: sample_000003_0
+page_width: 477
+page_height: 620
+num_points: 150
+num_textboxes: 1
+num_textlines: 14
+
+--- TextBoxes ---
+  - id: 0, type: grid, orientation: 6.31, num_points: 150

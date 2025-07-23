@@ -199,8 +199,11 @@ This report would contain aggregate statistics over the entire dataset:
 This provides a high-level sanity check on the generated data.
 
 
-- the main text is always there (one or more)
-- sometime we have others pg no, marginalia etc...
+TODO
+- interlinear gloss is not being placed between the text lines placement. Interlinear gloss should be a part of the Text Box class. Not
+- probability of interlinear gloss should be be independent of probability of text box types occuring.
+- bug in the grid special ambiguous layout: the grid is always at the same place
+
 
 
 
