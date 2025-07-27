@@ -176,7 +176,7 @@ const tempEndPoint = ref(null);
 const modifications = ref([]);
 const workingGraph = reactive({ nodes: [], edges: [] });
 
-const scaleFactor = 0.5;
+const scaleFactor = 1.0;
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor));
 const scaledHeight = computed(() => Math.floor(dimensions.value[1] * scaleFactor));
 const scaleX = (x) => x * scaleFactor;
