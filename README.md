@@ -9,7 +9,7 @@ This tool enables segmenting text-line-images from pages with diverse layouts. I
 
 To recognise text content from the segmented text-line-images, we use a pre-trained text recognition model for the Devanāgarī script. The tools enables fine-tuning of the pre-trained model on specific manuscripts, which results in the model's predictions getting progressively better with more annotated data, thus also making the subsequent annotation easier - similar to active learning.
 
-Contact kartik.niszoig at gmail for questions, comments and reporting bugs.
+Contact kartik.niszoig at gmail for questions, comments and reporting bugs..
 
 
 ![Demo](demo.gif)
