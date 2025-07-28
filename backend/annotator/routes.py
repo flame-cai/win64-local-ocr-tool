@@ -96,7 +96,7 @@ def get_node_features_and_graph(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_node_features.txt"
+        MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_inputs_unnormalized.txt"
     )
     GRAPH_FILEPATH = os.path.join(
         MANUSCRIPTS_PATH, manuscript_name, "graph-data"
@@ -183,7 +183,7 @@ def make_semi_segments(manuscript_name, page):
     try:
         MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
         POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_labels.txt"
+            MANUSCRIPTS_PATH, manuscript_name, "graph-data", f"{page}_labels_textline.txt"
         )
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "graph-data"

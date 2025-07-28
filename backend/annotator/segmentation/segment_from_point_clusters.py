@@ -335,8 +335,8 @@ def segmentLinesFromPointClusters(manuscript_name, page):
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
-    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_node_features.txt")
-    LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_labels.txt")
+    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_inputs_unnormalized.txt")
+    LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "graph-data", f"{page}_labels_textline.txt")
 
     # Check if the manuscript lines directory exists
     if os.path.exists(os.path.join(BASE_PATH, manuscript_name, "lines", page)) == False:
