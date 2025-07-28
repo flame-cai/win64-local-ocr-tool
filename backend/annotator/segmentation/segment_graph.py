@@ -201,7 +201,7 @@ def images2points(folder_path):
         cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
         
     for points_data,_filename in zip(points_data,file_names):
-        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_node_features.txt', points_data, fmt='%d')
+        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_node_features.txt', points_data, fmt='%f')
 
 
     # clear GPU memory  
