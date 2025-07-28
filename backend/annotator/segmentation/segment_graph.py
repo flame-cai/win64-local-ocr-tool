@@ -5,13 +5,106 @@ from torch_geometric.data import Data
 import json
 import cv2
 from scipy.ndimage import maximum_filter
-
 from scipy.ndimage import label
-
 from annotator.segmentation.craft import CRAFT, copyStateDict, detect
 from annotator.segmentation.utils import load_images_from_folder
 from scipy.ndimage import maximum_filter, label, find_objects, center_of_mass
 from skimage.draw import circle_perimeter
+from scipy.spatial import cKDTree
+import networkx as nx
+from pathlib import Path
+
+
+
+def compute_and_save_stats(
+    points: np.ndarray,
+    page_dims: tuple[int, int],
+    output_path: Path,
+    k_neighbors: int = 5
+):
+    """
+    Computes a suite of statistics for a point cloud, builds a k-NN graph,
+    and saves the stats to a JSON file.
+
+    Parameters:
+    -----------
+    points : np.ndarray
+        Array of shape (N, 3) with [X, Y, Size]. Can be normalized or unnormalized.
+    page_dims : tuple
+        A tuple of (width, height) of the page.
+    output_path : Path
+        The path to save the output JSON file (e.g., .../graph_stats.json).
+    k_neighbors : int
+        The number of nearest neighbors to use for graph construction.
+    """
+    if points.shape[0] < k_neighbors + 1:
+        # Not enough points to build a meaningful graph
+        stats = {
+            "node_count": points.shape[0],
+            "page_dims": page_dims,
+            "error": "Not enough nodes to compute graph stats."
+        }
+        with open(output_path, 'w') as f:
+            json.dump(stats, f, indent=4)
+        return
+
+    # --- Tier 1 Stats ---
+    node_count = points.shape[0]
+    coords = points[:, :2]
+
+    # Build k-NN graph using scipy's fast cKDTree
+    tree = cKDTree(coords)
+    distances, indices = tree.query(coords, k=k_neighbors + 1)
+
+    # distances and indices are (N, k+1). The first column is the point itself.
+    # We slice to get edges to the k neighbors.
+    edge_lengths = distances[:, 1:].flatten()
+    
+    source_nodes = np.repeat(np.arange(node_count), k_neighbors)
+    target_nodes = indices[:, 1:].flatten()
+    
+    source_coords = coords[source_nodes]
+    target_coords = coords[target_nodes]
+    
+    # Edge Orientations (in radians, from -pi to pi)
+    dx = target_coords[:, 0] - source_coords[:, 0]
+    dy = target_coords[:, 1] - source_coords[:, 1]
+    edge_orientations = np.arctan2(dy, dx)
+
+    # --- Tier 2 Stats (using NetworkX for convenience) ---
+    G = nx.Graph()
+    G.add_nodes_from(range(node_count))
+    edges = np.stack([source_nodes, target_nodes], axis=1)
+    G.add_edges_from(edges)
+    
+    degrees = [d for n, d in G.degree()]
+    avg_clustering = nx.average_clustering(G)
+    num_components = nx.number_connected_components(G)
+
+    # --- Collate and Save ---
+    # For distributions, we can save histogram bins and counts
+    # This is more compact than saving the raw data.
+    def to_histogram(data, bins=10):
+        counts, bin_edges = np.histogram(data, bins=bins)
+        return {"counts": counts.tolist(), "bin_edges": bin_edges.tolist()}
+
+    stats = {
+        "node_count": node_count,
+        "page_dims": page_dims,
+        "k_neighbors": k_neighbors,
+        "distributions": {
+            "edge_lengths": to_histogram(edge_lengths),
+            "edge_orientations_rad": to_histogram(edge_orientations),
+            "node_degrees": to_histogram(degrees, bins=max(degrees)+1) # Integer bins
+        },
+        "graph_summary": {
+            "avg_clustering_coefficient": avg_clustering,
+            "num_connected_components": num_components
+        }
+    }
+    
+    with open(output_path, 'w') as f:
+        json.dump(stats, f, indent=4)
 
 
 # ------------------heatmap to point cloud---------
@@ -162,52 +255,102 @@ def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=5, max_growt
 
 
 
+# Assume these functions are defined elsewhere in your project
+# from your_project.utils import load_images_from_folder, copyStateDict
+# from your_project.detection import detect, CRAFT
+# from your_project.pointcloud import heatmap_to_pointcloud
+
 def images2points(folder_path):
     print(folder_path)
-    #m_name = folder_path.split('/')[-2]
     m_name = os.path.basename(os.path.dirname(folder_path))
-    device = torch.device('cuda') #change to cpu if no gpu
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-    # HEATMAP
-    inp_images, file_names = load_images_from_folder(folder_path)
-    print("Current Working Directory:", os.getcwd())
-
+    # --- Model Loading ---
     _detector = CRAFT()
-    _detector.load_state_dict(copyStateDict(torch.load("instance/models/segmentation/craft_mlt_25k.pth",map_location=device)))
+    _detector.load_state_dict(copyStateDict(torch.load("instance/models/segmentation/craft_mlt_25k.pth", map_location=device)))
     detector = torch.nn.DataParallel(_detector).to(device)
     detector.eval()
 
+    # --- Data Loading ---
+    inp_images, file_names = load_images_from_folder(folder_path)
+    print("Current Working Directory:", os.getcwd())
 
-    out_images=[]
-    points_data = []
-    for image,_filename in zip(inp_images, file_names):
-        # get region score and affinity score
-        region_score, affinity_score = detect(image,detector, device)
+    # --- Processing Loop ---
+    out_images = []
+    normalized_points_list = [] # List for normalized points
+    unnormalized_points_list = [] # NEW: List for raw, unnormalized points
+    page_dimensions = []
+    
+    for image, _filename in zip(inp_images, file_names):
+        # 0. Store original page dimensions
+        original_height, original_width, _ = image.shape
+        page_dimensions.append((original_width, original_height))
+
+        # 1. Get region score (heatmap)
+        region_score, affinity_score = detect(image, detector, device)
         assert region_score.shape == affinity_score.shape
-        _node_features = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
+        
+        # 2. Convert heatmap to raw point coordinates (unnormalized)
+        raw_points = heatmap_to_pointcloud(region_score, min_peak_value=0.3, min_distance=10)
+        
+        # --- NEW: Store the unnormalized points first ---
+        unnormalized_points_list.append(raw_points)
 
-        points_data.append(_node_features)
+        # 3. Normalize the points
+        height, width = region_score.shape
+        longest_dim = max(height, width)
+        
+        if longest_dim > 0:
+            normalized_points = raw_points / longest_dim
+        else:
+            normalized_points = raw_points
+
+        # 4. Store the processed data
+        normalized_points_list.append(normalized_points)
         out_images.append(np.copy(region_score))
 
+    # --- Saving Results ---
+    heatmap_dir = f'instance/manuscripts/{m_name}/heatmaps'
+    graph_data_dir = f'instance/manuscripts/{m_name}/graph-data'
+    os.makedirs(heatmap_dir, exist_ok=True)
+    os.makedirs(graph_data_dir, exist_ok=True)
 
-    if os.path.exists(f'instance/manuscripts/{m_name}/heatmaps') == False:
-        os.makedirs(f'instance/manuscripts/{m_name}/heatmaps')
+    # Save heatmaps
+    for _img, _filename in zip(out_images, file_names):
+        cv2.imwrite(os.path.join(heatmap_dir, _filename), 255 * _img)
+    
+    # --- Save NORMALIZED node features (for backward compatibility) ---
+    for points, _filename in zip(normalized_points_list, file_names):
+        output_filename = os.path.splitext(_filename)[0] + '_inputs_normalized.txt'
+        output_path = os.path.join(graph_data_dir, output_filename)
+        np.savetxt(output_path, points, fmt='%f')
 
-    if os.path.exists(f'instance/manuscripts/{m_name}/graph-data') == False:
-        os.makedirs(f'instance/manuscripts/{m_name}/graph-data')
+    # --- NEW: Save UNNORMALIZED node features to a separate file ---
+    for raw_points, _filename in zip(unnormalized_points_list, file_names):
+        raw_output_filename = os.path.splitext(_filename)[0] + '_inputs_unnormalized.txt'
+        raw_output_path = os.path.join(graph_data_dir, raw_output_filename)
+        np.savetxt(raw_output_path, raw_points, fmt='%f')
 
-    for _img,_filename in zip(out_images,file_names):
-        cv2.imwrite(f"instance/manuscripts/{m_name}/heatmaps/{_filename}",255*_img)
-        
-    for points_data,_filename in zip(points_data,file_names):
-        np.savetxt(f'instance/manuscripts/{m_name}/graph-data/{os.path.splitext(_filename)[0]}_node_features.txt', points_data, fmt='%f')
+    # Save the page dimensions
+    for (width, height), _filename in zip(page_dimensions, file_names):
+        dims_filename = os.path.splitext(_filename)[0] + '_dims.txt'
+        dims_path = os.path.join(graph_data_dir, dims_filename)
+        with open(dims_path, 'w') as f:
+            f.write(f"{width} {height}")
 
+        # --- Save Stats File ---
+    for raw_points, dims, _filename in zip(unnormalized_points_list, page_dimensions, file_names):
+        stats_filename = os.path.splitext(_filename)[0] + '_graph_stats.json'
+        stats_path = os.path.join(graph_data_dir, stats_filename)
+        # The Path object is expected by our new function
+        compute_and_save_stats(raw_points, dims, Path(stats_path))
 
-    # clear GPU memory  
+    # --- Cleanup ---
     del detector
     del _detector
     torch.cuda.empty_cache()
+
+    print(f"Finished processing. All data saved to: {graph_data_dir}")
     
 
 
