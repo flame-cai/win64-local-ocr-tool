@@ -220,9 +220,12 @@ def images2points(folder_path):
 
     # --- Saving Results ---
     heatmap_dir = f'instance/manuscripts/{m_name}/heatmaps'
-    graph_data_dir = f'instance/manuscripts/{m_name}/graph-data'
+    base_data_dir = f'instance/manuscripts/{m_name}/base-dataset'
+    frontend_graph_data_dir = f'instance/manuscripts/{m_name}/frontend-graph-data'
+
     os.makedirs(heatmap_dir, exist_ok=True)
-    os.makedirs(graph_data_dir, exist_ok=True)
+    os.makedirs(base_data_dir, exist_ok=True)
+    os.makedirs(frontend_graph_data_dir, exist_ok=True)
 
     # Save heatmaps
     for _img, _filename in zip(out_images, file_names):
@@ -231,19 +234,19 @@ def images2points(folder_path):
     # --- Save NORMALIZED node features (for backward compatibility) ---
     for points, _filename in zip(normalized_points_list, file_names):
         output_filename = os.path.splitext(_filename)[0] + '_inputs_normalized.txt'
-        output_path = os.path.join(graph_data_dir, output_filename)
+        output_path = os.path.join(base_data_dir, output_filename)
         np.savetxt(output_path, points, fmt='%f')
 
     # --- NEW: Save UNNORMALIZED node features to a separate file ---
     for raw_points, _filename in zip(unnormalized_points_list, file_names):
         raw_output_filename = os.path.splitext(_filename)[0] + '_inputs_unnormalized.txt'
-        raw_output_path = os.path.join(graph_data_dir, raw_output_filename)
+        raw_output_path = os.path.join(base_data_dir, raw_output_filename)
         np.savetxt(raw_output_path, raw_points, fmt='%f')
 
     # Save the page dimensions
     for (width, height), _filename in zip(page_dimensions, file_names):
         dims_filename = os.path.splitext(_filename)[0] + '_dims.txt'
-        dims_path = os.path.join(graph_data_dir, dims_filename)
+        dims_path = os.path.join(base_data_dir, dims_filename)
         with open(dims_path, 'w') as f:
             f.write(f"{width} {height}")
 
@@ -253,11 +256,11 @@ def images2points(folder_path):
     del _detector
     torch.cuda.empty_cache()
 
-    print(f"Finished processing. All data saved to: {graph_data_dir}")
+    print(f"Finished processing. All data saved to: {base_data_dir}")
     
 
 
-def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn_graphs',update=False):
+def handle_save_graph(graph_data, manuscript_name, page_number, output_dir='gnn_graphs',update=False):
     """
     Save a graph in a format compatible with Graph Neural Networks (PyTorch Geometric).
     
@@ -337,7 +340,7 @@ def save_graph_for_gnn(graph_data, manuscript_name, page_number, output_dir='gnn
     
     return torch_path
 
-def load_graph_for_gnn(page_number,
+def handle_load_graph(page_number,
                        input_dir='gnn_graphs',
                        update=False):
     """
