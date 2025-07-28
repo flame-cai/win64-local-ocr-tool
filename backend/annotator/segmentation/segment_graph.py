@@ -8,103 +8,12 @@ from scipy.ndimage import maximum_filter
 from scipy.ndimage import label
 from annotator.segmentation.craft import CRAFT, copyStateDict, detect
 from annotator.segmentation.utils import load_images_from_folder
-from scipy.ndimage import maximum_filter, label, find_objects, center_of_mass
+from scipy.ndimage import maximum_filter, label
 from skimage.draw import circle_perimeter
-from scipy.spatial import cKDTree
-import networkx as nx
 from pathlib import Path
 
 
 
-def compute_and_save_stats(
-    points: np.ndarray,
-    page_dims: tuple[int, int],
-    output_path: Path,
-    k_neighbors: int = 5
-):
-    """
-    Computes a suite of statistics for a point cloud, builds a k-NN graph,
-    and saves the stats to a JSON file.
-
-    Parameters:
-    -----------
-    points : np.ndarray
-        Array of shape (N, 3) with [X, Y, Size]. Can be normalized or unnormalized.
-    page_dims : tuple
-        A tuple of (width, height) of the page.
-    output_path : Path
-        The path to save the output JSON file (e.g., .../graph_stats.json).
-    k_neighbors : int
-        The number of nearest neighbors to use for graph construction.
-    """
-    if points.shape[0] < k_neighbors + 1:
-        # Not enough points to build a meaningful graph
-        stats = {
-            "node_count": points.shape[0],
-            "page_dims": page_dims,
-            "error": "Not enough nodes to compute graph stats."
-        }
-        with open(output_path, 'w') as f:
-            json.dump(stats, f, indent=4)
-        return
-
-    # --- Tier 1 Stats ---
-    node_count = points.shape[0]
-    coords = points[:, :2]
-
-    # Build k-NN graph using scipy's fast cKDTree
-    tree = cKDTree(coords)
-    distances, indices = tree.query(coords, k=k_neighbors + 1)
-
-    # distances and indices are (N, k+1). The first column is the point itself.
-    # We slice to get edges to the k neighbors.
-    edge_lengths = distances[:, 1:].flatten()
-    
-    source_nodes = np.repeat(np.arange(node_count), k_neighbors)
-    target_nodes = indices[:, 1:].flatten()
-    
-    source_coords = coords[source_nodes]
-    target_coords = coords[target_nodes]
-    
-    # Edge Orientations (in radians, from -pi to pi)
-    dx = target_coords[:, 0] - source_coords[:, 0]
-    dy = target_coords[:, 1] - source_coords[:, 1]
-    edge_orientations = np.arctan2(dy, dx)
-
-    # --- Tier 2 Stats (using NetworkX for convenience) ---
-    G = nx.Graph()
-    G.add_nodes_from(range(node_count))
-    edges = np.stack([source_nodes, target_nodes], axis=1)
-    G.add_edges_from(edges)
-    
-    degrees = [d for n, d in G.degree()]
-    avg_clustering = nx.average_clustering(G)
-    num_components = nx.number_connected_components(G)
-
-    # --- Collate and Save ---
-    # For distributions, we can save histogram bins and counts
-    # This is more compact than saving the raw data.
-    def to_histogram(data, bins=10):
-        counts, bin_edges = np.histogram(data, bins=bins)
-        return {"counts": counts.tolist(), "bin_edges": bin_edges.tolist()}
-
-    stats = {
-        "node_count": node_count,
-        "page_dims": page_dims,
-        "k_neighbors": k_neighbors,
-        "distributions": {
-            "edge_lengths": to_histogram(edge_lengths),
-            "edge_orientations_rad": to_histogram(edge_orientations),
-            "node_degrees": to_histogram(degrees, bins=max(degrees)+1) # Integer bins
-        },
-        "graph_summary": {
-            "avg_clustering_coefficient": avg_clustering,
-            "num_connected_components": num_components
-        }
-    }
-    
-    with open(output_path, 'w') as f:
-        json.dump(stats, f, indent=4)
 
 
 # ------------------heatmap to point cloud---------
@@ -338,12 +247,6 @@ def images2points(folder_path):
         with open(dims_path, 'w') as f:
             f.write(f"{width} {height}")
 
-        # --- Save Stats File ---
-    for raw_points, dims, _filename in zip(unnormalized_points_list, page_dimensions, file_names):
-        stats_filename = os.path.splitext(_filename)[0] + '_graph_stats.json'
-        stats_path = os.path.join(graph_data_dir, stats_filename)
-        # The Path object is expected by our new function
-        compute_and_save_stats(raw_points, dims, Path(stats_path))
 
     # --- Cleanup ---
     del detector
