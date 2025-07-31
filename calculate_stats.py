@@ -375,10 +375,11 @@ def visualize_graph_stats(page_id: int, points: np.ndarray, graph_stats: dict, e
         mask = (degrees == degree_val)
         ax.scatter(
             points[mask, 0], points[mask, 1],
-            s=np.maximum(points[mask, 2] * 1.5, 5.0), # Scale font size, ensure min size
+            s=np.maximum(points[mask, 2]/2, 2.0), # Scale font size, ensure min size
             c=color,
             zorder=2,
             edgecolors='k',
+            alpha=0.5,
             linewidth=0.3
         )
 
