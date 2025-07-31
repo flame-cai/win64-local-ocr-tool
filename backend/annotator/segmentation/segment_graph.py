@@ -248,7 +248,7 @@ def images2points(folder_path):
         dims_filename = os.path.splitext(_filename)[0] + '_dims.txt'
         dims_path = os.path.join(base_data_dir, dims_filename)
         with open(dims_path, 'w') as f:
-            f.write(f"{width} {height}")
+            f.write(f"{width/2} {height/2}")
 
 
     # --- Cleanup ---
