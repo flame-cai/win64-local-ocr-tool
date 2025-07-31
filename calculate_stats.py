@@ -9,12 +9,16 @@ from sklearn.decomposition import PCA
 import numpy as np
 from scipy.spatial import KDTree
 from sklearn.mixture import GaussianMixture # New import
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from matplotlib.collections import LineCollection
+import matplotlib.patches as mpatches # New import needed for custom legend
 
 # --- Configuration ---
 # K for K-Nearest Neighbors in inter-line spacing calculation
 INTER_LINE_K = 10
 # K for Heuristic Graph neighbor search
-HEURISTIC_GRAPH_K = 6
+HEURISTIC_GRAPH_K = 10
 # Cosine similarity threshold for opposite neighbors
 OPPOSITE_NEIGHBOR_COS_SIM_THRESHOLD = -0.8
 # Number of bins for font size analysis
@@ -94,6 +98,7 @@ def load_page_data(page_id: int, base_path: str) -> (dict, np.ndarray, np.ndarra
 
 
 # --- Core Statistical Calculation Functions ---
+
 
 
 def calculate_intra_line_stats(lines_data: dict) -> dict:
@@ -248,6 +253,8 @@ def calculate_page_level_stats(all_points: np.ndarray, page_dims: dict) -> dict:
     }
 
 
+
+
 def calculate_graph_based_stats(all_points: np.ndarray, page_dims: dict) -> dict:
     # This function remains unchanged
     logging.info("Calculating graph-based statistics...")
@@ -295,7 +302,123 @@ def calculate_graph_based_stats(all_points: np.ndarray, page_dims: dict) -> dict
             overlaps.append(overlap_val)
             processed_edges.add(edge_key)
 
-    return {"heuristic_degree": degrees, "overlap": np.array(overlaps)}
+    return {"heuristic_degree": degrees, "overlap": np.array(overlaps)}, heuristic_directed_edges
+
+
+COLORS = [
+    '#4363d8', '#f58231', '#ffe119', '#3cb44b', '#e6194B',
+    '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4',
+    '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000',
+    '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9'
+]
+
+
+def visualize_graph_stats(page_id: int, points: np.ndarray, graph_stats: dict, edges: list, page_dims: dict, output_dir: str):
+    """
+    Visualizes the graph structure for a single page and saves it as a PNG.
+    - Node color represents heuristic degree (discrete).
+    - Edge color represents overlap count (discrete).
+    - Node size represents font size.
+    - A clear, non-obstructing legend is generated.
+    """
+    logging.info(f"Visualizing graph for page {page_id} with new style...")
+    n_points = len(points)
+    if n_points == 0 or not edges:
+        logging.warning(f"Skipping visualization for page {page_id} due to no points or edges.")
+        return
+
+    degrees = graph_stats.get('heuristic_degree', np.array([]))
+    if degrees.size == 0:
+        logging.warning(f"Skipping visualization for page {page_id} as no degrees were computed.")
+        return
+
+    fig, ax = plt.subplots(figsize=(12, 12 * (page_dims['height'] / page_dims['width'])))
+    
+    # --- 1. Calculate Overlaps and Map Colors ---
+    edge_counts = Counter(edges)
+    undirected_edges = defaultdict(lambda: {'points': [], 'overlap': 0})
+    for u, v in edges:
+        key = tuple(sorted((u, v)))
+        undirected_edges[key]['points'] = [points[u, :2], points[v, :2]]
+    for key in undirected_edges:
+        u, v = key
+        undirected_edges[key]['overlap'] = edge_counts.get((u, v), 0) + edge_counts.get((v, u), 0)
+
+    # Create discrete color maps for overlaps and degrees
+    unique_overlaps = sorted(np.unique([d['overlap'] for d in undirected_edges.values()]))
+    unique_degrees = sorted(np.unique(degrees))
+    
+    # Use one iterator for the COLORS list to ensure colors are distinct
+    color_iterator = 0
+    overlap_color_map = {}
+    for overlap in unique_overlaps:
+        overlap_color_map[overlap] = COLORS[color_iterator % len(COLORS)]
+        color_iterator += 1
+
+    degree_color_map = {}
+    for degree in unique_degrees:
+        degree_color_map[degree] = COLORS[color_iterator % len(COLORS)]
+        color_iterator += 1
+        
+    # --- 2. Plot Edges in Groups by Overlap Color ---
+    edges_by_color = defaultdict(list)
+    for edge in undirected_edges.values():
+        color = overlap_color_map[edge['overlap']]
+        edges_by_color[color].append(edge['points'])
+
+    for color, line_segments in edges_by_color.items():
+        lc = LineCollection(line_segments, colors=color, linewidths=1.2, zorder=1)
+        ax.add_collection(lc)
+
+    # --- 3. Plot Nodes in Groups by Degree Color ---
+    for degree_val, color in degree_color_map.items():
+        mask = (degrees == degree_val)
+        ax.scatter(
+            points[mask, 0], points[mask, 1],
+            s=np.maximum(points[mask, 2] * 1.5, 5.0), # Scale font size, ensure min size
+            c=color,
+            zorder=2,
+            edgecolors='k',
+            linewidth=0.3
+        )
+
+    # --- 4. Create and Place a Custom Legend ---
+    legend_handles = []
+    # Add handles for node degrees
+    if degree_color_map:
+        legend_handles.append(mpatches.Patch(color='none', label='Node Degree:'))
+        for degree, color in sorted(degree_color_map.items()):
+            legend_handles.append(mpatches.Patch(color=color, label=f'{degree}'))
+    
+    # Add handles for edge overlaps
+    if overlap_color_map:
+        legend_handles.append(mpatches.Patch(color='none', label='')) # Spacer
+        legend_handles.append(mpatches.Patch(color='none', label='Edge Overlap:'))
+        for overlap, color in sorted(overlap_color_map.items()):
+            legend_handles.append(mpatches.Patch(color=color, label=f'{overlap}'))
+
+    # Place legend outside the plot area to prevent obstruction
+    fig.legend(handles=legend_handles, 
+               loc="upper left", 
+               bbox_to_anchor=(1.01, 1.0),
+               title="Legend",
+               fontsize='small')
+
+    # --- 5. Final Touches ---
+    ax.set_title(f"Page {page_id} - Graph-Based Statistics (Discrete Colors)")
+    ax.set_aspect('equal', adjustable='box')
+    ax.invert_yaxis()
+    ax.set_xlim(0, page_dims['width'])
+    ax.set_ylim(page_dims['height'], 0)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    # Save figure, ensuring the legend is not cut off
+    output_path = os.path.join(output_dir, f"page_{page_id}_graph.png")
+    # Use bbox_inches='tight' to make sure the external legend is saved
+    plt.savefig(output_path, dpi=200, bbox_inches='tight')
+    plt.close(fig)
+    logging.info(f"Saved styled graph visualization to '{output_path}'")
 
 
 def aggregate_statistics(all_page_stats: list) -> dict:
@@ -415,12 +538,29 @@ def main():
     """Main execution function."""
     setup_logging()
     parser = argparse.ArgumentParser(description="Calculate typographical and layout statistics from manuscript data.")
+    
+    # --- Argument Parsing ---
     parser.add_argument("dataset_path", type=str, help="Path to the base dataset directory.")
-    parser.add_argument("--output_per_page", type=str, default="stats_per_page.json", help="Output JSON file for per-page statistics.")
-    parser.add_argument("--output_aggregated", type=str, default="stats_aggregated.json", help="Output JSON file for aggregated statistics.")
+    parser.add_argument("--output_dir", type=str, default="stats", help="Main directory to save all output files and subdirectories.")
+    parser.add_argument("--output_per_page", type=str, default="stats_per_page.json", help="Filename for the per-page statistics JSON.")
+    parser.add_argument("--output_aggregated", type=str, default="stats_aggregated.json", help="Filename for the aggregated statistics JSON.")
+    parser.add_argument("--visualize_graphs", action="store_true", help="Generate and save graph visualizations for each page.")
+    parser.add_argument("--viz_dir", type=str, default="graph_visualizations", help="Subdirectory name for graph visualizations.")
     
     args = parser.parse_args()
 
+    # --- Directory Setup ---
+    # Create the main output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+    logging.info(f"All outputs will be saved in the '{args.output_dir}' directory.")
+
+    # Construct the full path for the visualization subdirectory and create it if needed
+    viz_output_dir = os.path.join(args.output_dir, args.viz_dir)
+    if args.visualize_graphs:
+        os.makedirs(viz_output_dir, exist_ok=True)
+        logging.info(f"Graph visualizations will be saved to '{viz_output_dir}'")
+        
+    # --- Data Loading ---
     try:
         files = os.listdir(args.dataset_path)
         page_ids = sorted(list(set([int(f.split('_')[0]) for f in files if f.split('_')[0].isdigit()])))
@@ -429,6 +569,7 @@ def main():
         logging.critical(f"Could not read dataset directory '{args.dataset_path}': {e}")
         return
 
+    # --- Processing Loop ---
     all_page_raw_stats_for_json = []
     stats_for_aggregation = []
     
@@ -436,6 +577,7 @@ def main():
         dims, points, labels = load_page_data(page_id, args.dataset_path)
         if dims is None: continue
         
+        # Prepare line data
         lines_data = defaultdict(lambda: {'points': [], 'indices': [], 'label': None})
         for i, (point, label) in enumerate(zip(points, labels)):
             lines_data[label]['points'].append(point)
@@ -445,25 +587,43 @@ def main():
         for label in lines_data:
             lines_data[label]['points'] = np.array(lines_data[label]['points'])
 
+        # Calculate all stats
+        graph_stats, graph_edges = calculate_graph_based_stats(points, dims)
         page_stats_data = {
             'intra_line': calculate_intra_line_stats(lines_data),
             'inter_line': calculate_inter_line_stats(points, lines_data, dims),
             'page_level': calculate_page_level_stats(points, dims),
-            'graph_based': calculate_graph_based_stats(points, dims),
+            'graph_based': graph_stats,
         }
         stats_for_aggregation.append(page_stats_data)
+        
+        # Visualize if requested
+        if args.visualize_graphs:
+            visualize_graph_stats(
+                page_id=page_id,
+                points=points,
+                graph_stats=graph_stats,
+                edges=graph_edges,
+                page_dims=dims,
+                output_dir=viz_output_dir  # Use the fully constructed path
+            )
         
         page_stats_with_id = {'page_id': page_id, **page_stats_data}
         all_page_raw_stats_for_json.append(page_stats_with_id)
     
-    logging.info(f"Saving per-page statistics to '{args.output_per_page}'...")
-    with open(args.output_per_page, 'w') as f:
+    # --- Save JSON Outputs ---
+    # Construct full paths for JSON output files
+    per_page_path = os.path.join(args.output_dir, args.output_per_page)
+    aggregated_path = os.path.join(args.output_dir, args.output_aggregated)
+
+    logging.info(f"Saving per-page statistics to '{per_page_path}'...")
+    with open(per_page_path, 'w') as f:
         json.dump(all_page_raw_stats_for_json, f, cls=NumpyEncoder, indent=4)
 
     aggregated_stats = aggregate_statistics(stats_for_aggregation)
     
-    logging.info(f"Saving aggregated statistics to '{args.output_aggregated}'...")
-    with open(args.output_aggregated, 'w') as f:
+    logging.info(f"Saving aggregated statistics to '{aggregated_path}'...")
+    with open(aggregated_path, 'w') as f:
         json.dump(aggregated_stats, f, cls=NumpyEncoder, indent=4)
 
     logging.info("Processing complete.")
