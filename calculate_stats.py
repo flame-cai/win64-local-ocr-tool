@@ -69,7 +69,7 @@ def describe_distribution(data: np.ndarray, name: str) -> dict:
     }
     return stats
 
-def load_page_data(page_id: int, base_path: str) -> (dict, np.ndarray, np.ndarray):
+def load_page_data(page_id: str, base_path: str) -> (dict, np.ndarray, np.ndarray):
     """Loads all data files for a single page."""
     logging.info(f"Loading data for page {page_id}...")
     try:
@@ -313,7 +313,7 @@ COLORS = [
 ]
 
 
-def visualize_graph_stats(page_id: int, points: np.ndarray, graph_stats: dict, edges: list, page_dims: dict, output_dir: str):
+def visualize_graph_stats(page_id: str, points: np.ndarray, graph_stats: dict, edges: list, page_dims: dict, output_dir: str):
     """
     Visualizes the graph structure for a single page and saves it as a PNG.
     - Node color represents heuristic degree (discrete).
@@ -550,22 +550,34 @@ def main():
     
     args = parser.parse_args()
 
-    # --- Directory Setup ---
-    # Create the main output directory
-    os.makedirs(args.output_dir, exist_ok=True)
-    logging.info(f"All outputs will be saved in the '{args.output_dir}' directory.")
+    # --- Directory Setup (TASK 2) ---
+    # Get the basename of the dataset path (e.g., 'synthetic-dataset' from 'data/synthetic-dataset')
+    dataset_name = os.path.basename(os.path.normpath(args.dataset_path))
+    # The final output directory will be <output_dir>/<dataset_name>
+    final_output_dir = os.path.join(args.output_dir, dataset_name)
+    
+    os.makedirs(final_output_dir, exist_ok=True)
+    logging.info(f"All outputs will be saved in the '{final_output_dir}' directory.")
 
     # Construct the full path for the visualization subdirectory and create it if needed
-    viz_output_dir = os.path.join(args.output_dir, args.viz_dir)
+    viz_output_dir = os.path.join(final_output_dir, args.viz_dir)
     if args.visualize_graphs:
         os.makedirs(viz_output_dir, exist_ok=True)
         logging.info(f"Graph visualizations will be saved to '{viz_output_dir}'")
         
-    # --- Data Loading ---
+    # --- Data Loading (TASK 1) ---
     try:
         files = os.listdir(args.dataset_path)
-        page_ids = sorted(list(set([int(f.split('_')[0]) for f in files if f.split('_')[0].isdigit()])))
-        logging.info(f"Found {len(page_ids)} pages in '{args.dataset_path}': {page_ids}")
+        # Identify page IDs by a common suffix, e.g., '_dims.txt'.
+        # This supports string-based IDs like 'A_12'. Using .removesuffix for clarity (Python 3.9+).
+        dims_suffix = "_dims.txt"
+        page_ids = sorted([f.removesuffix(dims_suffix) for f in files if f.endswith(dims_suffix)])
+        
+        if not page_ids:
+            logging.warning(f"Could not find any pages in '{args.dataset_path}'. "
+                            f"Expected to find files ending with '{dims_suffix}'.")
+        else:
+            logging.info(f"Found {len(page_ids)} pages in '{args.dataset_path}'.")
     except Exception as e:
         logging.critical(f"Could not read dataset directory '{args.dataset_path}': {e}")
         return
@@ -612,10 +624,10 @@ def main():
         page_stats_with_id = {'page_id': page_id, **page_stats_data}
         all_page_raw_stats_for_json.append(page_stats_with_id)
     
-    # --- Save JSON Outputs ---
-    # Construct full paths for JSON output files
-    per_page_path = os.path.join(args.output_dir, args.output_per_page)
-    aggregated_path = os.path.join(args.output_dir, args.output_aggregated)
+    # --- Save JSON Outputs (TASK 2) ---
+    # Construct full paths for JSON output files inside the new final_output_dir
+    per_page_path = os.path.join(final_output_dir, args.output_per_page)
+    aggregated_path = os.path.join(final_output_dir, args.output_aggregated)
 
     logging.info(f"Saving per-page statistics to '{per_page_path}'...")
     with open(per_page_path, 'w') as f:
