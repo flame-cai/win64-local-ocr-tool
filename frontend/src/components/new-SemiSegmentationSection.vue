@@ -11,7 +11,7 @@
         <div class="toggle-container">
           <label>
             <input type="checkbox" v-model="editMode" :disabled="isProcessingSave" />
-            Edit Mode
+            Edit Mode (W)
           </label>
         </div>
       </div>
@@ -45,12 +45,13 @@
         </div>
 
         <svg
-          v-if="effectiveShowGraph && workingGraph.nodes && workingGraph.nodes.length > 0"
+          v-if="graphIsLoaded"
           class="graph-overlay"
+          :class="{ 'is-visible': editMode }"
           :width="scaledWidth"
           :height="scaledHeight"
           :style="{ cursor: svgCursor }"
-          @click="editMode && onBackgroundClick"
+          @click="editMode && onBackgroundClick($event)"
           @mousemove="handleSvgMouseMove"
           @mouseleave="handleSvgMouseLeave"
           ref="svgOverlayRef"
@@ -95,10 +96,11 @@
     <div class="bottom-panel">
       <div class="panel-toggle-bar" @click="isControlsCollapsed = !isControlsCollapsed">
           <div class="edit-instructions">
-            <p v-if="isControlsCollapsed">Hold 'a' to connect, 'd' to delete. Press 's' to save & next.</p>
-             <p v-else-if="!isAKeyPressed && !isDKeyPressed">Select nodes to manage edges, or use hotkeys.</p>
-             <p v-else-if="isAKeyPressed">Release 'A' to connect nodes.</p>
-             <p v-else-if="isDKeyPressed">Release 'D' to stop deleting.</p>
+            <p v-if="isControlsCollapsed && editMode">Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle edit with 'w'.</p>
+            <p v-else-if="isControlsCollapsed && !editMode">Press 'w' to enter edit mode.</p>
+            <p v-else-if="!isAKeyPressed && !isDKeyPressed">Select nodes to manage edges, or use hotkeys.</p>
+            <p v-else-if="isAKeyPressed">Release 'A' to connect nodes.</p>
+            <p v-else-if="isDKeyPressed">Release 'D' to stop deleting.</p>
           </div>
           <button class="panel-toggle-btn">
             {{ isControlsCollapsed ? 'Show Controls' : 'Hide Controls' }}
@@ -187,7 +189,6 @@ const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor)
 const scaledHeight = computed(() => Math.floor(dimensions.value[1] * scaleFactor));
 const scaleX = (x) => x * scaleFactor;
 const scaleY = (y) => y * scaleFactor;
-const effectiveShowGraph = computed(() => editMode.value);
 const graphIsLoaded = computed(() => workingGraph.nodes && workingGraph.nodes.length > 0);
 
 // --- Data Fetching and Initialization ---
@@ -307,20 +308,46 @@ const handleSvgMouseMove = (event) => {
 };
 const handleSvgMouseLeave = () => { if (selectedNodes.value.length === 1) tempEndPoint.value = null; };
 const handleGlobalKeyDown = (e) => {
-  if (e.key.toLowerCase() === 's' && !e.repeat) { e.preventDefault(); if (!loading.value && !isProcessingSave.value) saveAndGoNext(); return; }
+  // Allow toggling edit mode regardless of focus
+  if (e.key.toLowerCase() === 'w' && !e.repeat) {
+    e.preventDefault();
+    editMode.value = !editMode.value;
+    return;
+  }
+
+  // Hotkeys that should only work in edit mode
   if (!editMode.value || e.repeat) return;
-  if (e.key.toLowerCase() === 'd') { e.preventDefault(); isDKeyPressed.value = true; resetSelection(); }
-  if (e.key.toLowerCase() === 'a') { e.preventDefault(); isAKeyPressed.value = true; hoveredNodesForMST.clear(); resetSelection(); }
+
+  const key = e.key.toLowerCase();
+  if (key === 's') {
+      e.preventDefault();
+      if (!loading.value && !isProcessingSave.value) saveAndGoNext();
+  }
+  if (key === 'd') {
+      e.preventDefault();
+      isDKeyPressed.value = true;
+      resetSelection();
+  }
+  if (key === 'a') {
+      e.preventDefault();
+      isAKeyPressed.value = true;
+      hoveredNodesForMST.clear();
+      resetSelection();
+  }
 };
 const handleGlobalKeyUp = (e) => {
+  // Key up events should also be guarded by edit mode
   if (!editMode.value) return;
-  if (e.key.toLowerCase() === 'd') isDKeyPressed.value = false;
-  if (e.key.toLowerCase() === 'a') {
+
+  const key = e.key.toLowerCase();
+  if (key === 'd') isDKeyPressed.value = false;
+  if (key === 'a') {
     isAKeyPressed.value = false;
     if (hoveredNodesForMST.size >= 2) addMSTEdges();
     hoveredNodesForMST.clear();
   }
 };
+
 
 // --- Edge Manipulation Logic (FIXED FOR 'label') ---
 const edgeExists = (nodeA, nodeB) => workingGraph.edges.some(e => (e.source === nodeA && e.target === nodeB) || (e.source === nodeB && e.target === nodeA));
@@ -471,7 +498,18 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', handleGlobalKeyDow
 }
 .image-container { position: relative; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
 .manuscript-image { display: block; user-select: none; opacity: 0.7; }
-.graph-overlay { position: absolute; top: 0; left: 0; }
+.graph-overlay {
+  position: absolute; top: 0; left: 0;
+  /* Improvement: Hide by default and control interaction */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+.graph-overlay.is-visible {
+  /* Improvement: Show only when edit mode is active */
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* --- Bottom Panel --- */
 .bottom-panel {
