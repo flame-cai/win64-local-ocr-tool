@@ -220,7 +220,7 @@ def images2points(folder_path):
 
     # --- Saving Results ---
     heatmap_dir = f'instance/manuscripts/{m_name}/heatmaps'
-    base_data_dir = f'instance/manuscripts/{m_name}/base-dataset'
+    base_data_dir = f'instance/manuscripts/{m_name}/gnn-dataset'
     frontend_graph_data_dir = f'instance/manuscripts/{m_name}/frontend-graph-data'
 
     os.makedirs(heatmap_dir, exist_ok=True)
