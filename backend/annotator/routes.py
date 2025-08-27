@@ -49,7 +49,7 @@ def get_models():
 # NEW MANUSCRIPT PROCESSING
 @bp.route("/new-process-manuscript", methods=["POST"])
 def new_process_manuscript():
-    current_app.logger.info("Processing new Manuscript, converting to heatmap, and saveing character 2D Points")
+    current_app.logger.info("Processing new Manuscript, converting to heatmap, and saving character 2D Points")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     manuscript_name = request.form["manuscript_name"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
@@ -58,7 +58,7 @@ def new_process_manuscript():
     try:
         os.makedirs(leaves_folder_path, exist_ok=True)
     except Exception as e:
-        print(f"An error occured: {e}")
+        print(f"An error occurred: {e}")
 
     for file_key in request.files:
         uploaded_file = request.files[file_key]
@@ -67,6 +67,28 @@ def new_process_manuscript():
 
         # Open uploaded image file as a PIL image
         image = Image.open(uploaded_file)
+
+        # --- MODIFICATION START ---
+        # Check if the image is too big (height or width > 3000 pixels)
+        width, height = image.size
+        if width > 3000 or height > 3000:
+            print(f"Image '{original_filename}' is too large ({width}x{height}). Downscaling by 50%.")
+            new_width = width // 2
+            new_height = height // 2
+            
+            # Downscale the image using a high-quality resampling filter
+            # Note: In newer versions of Pillow (9.0.0+), Image.LANCZOS is aliased
+            # to Image.Resampling.LANCZOS. Using the latter is preferred.
+            try:
+                # For Pillow 9.0.0 and newer
+                from PIL import Image as PILImage
+                resampling_filter = PILImage.Resampling.LANCZOS
+            except AttributeError:
+                # For older versions of Pillow
+                resampling_filter = Image.LANCZOS
+
+            image = image.resize((new_width, new_height), resampling_filter)
+        # --- MODIFICATION END ---
 
         # Convert to RGB if needed (JPEG doesn't support some modes like RGBA)
         if image.mode in ("RGBA", "P", "LA"):
@@ -80,12 +102,12 @@ def new_process_manuscript():
 
         print(f"Saved: {new_filename}")
 
-    images2points(os.path.join(folder_path, "leaves"))
+    # It's assumed that images2points is defined elsewhere in your project
+    images2points(os.path.join(folder_path, "leaves")) 
     torch.cuda.empty_cache()
     gc.collect()
 
     return Response(json.dumps({"message": "Files uploaded and points processing initiated."}), status=200, mimetype='application/json')
-
 
 
 
@@ -96,7 +118,7 @@ def get_node_features_and_graph(manuscript_name, page):
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "base-dataset", f"{page}_inputs_unnormalized.txt"
+        MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset", f"{page}_inputs_unnormalized.txt"
     )
     GRAPH_FILEPATH = os.path.join(
         MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
@@ -183,7 +205,7 @@ def make_semi_segments(manuscript_name, page):
     try:
         MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
         POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "base-dataset", f"{page}_labels_textline.txt"
+            MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset", f"{page}_labels_textline.txt"
         )
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"

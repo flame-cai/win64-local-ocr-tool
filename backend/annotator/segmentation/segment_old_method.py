@@ -228,7 +228,7 @@ def segment_lines(folder_path, lineheight_baseline_percentile=80, binarize_thres
                 cv2.imwrite(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}/line{i+1:03d}.jpg',line_images[i])
         except:
             print("segmentation fails")
-            with open(f'instance/manuscripts/{m_name}/base-dataset/failures.txt', 'a') as file:
+            with open(f'instance/manuscripts/{m_name}/gnn-dataset/failures.txt', 'a') as file:
                 file.write(f"{file_name}")
 
             if os.path.exists(f'instance/manuscripts/{m_name}/lines/{os.path.splitext(file_name)[0]}') == False:
