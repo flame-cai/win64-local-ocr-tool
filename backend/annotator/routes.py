@@ -19,6 +19,7 @@ from annotator.segmentation.segment_from_point_clusters import segmentLinesFromP
 from annotator.segmentation.segment_graph import handle_save_graph, handle_load_graph, generate_labels_from_graph, images2points
 from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
 from annotator.finetune.finetune import finetune
+from natsort import natsorted
 
 bp = Blueprint("main", __name__)
 
@@ -76,39 +77,52 @@ def new_process_manuscript():
             new_width = width // 2
             new_height = height // 2
             
-            # Downscale the image using a high-quality resampling filter
-            # Note: In newer versions of Pillow (9.0.0+), Image.LANCZOS is aliased
-            # to Image.Resampling.LANCZOS. Using the latter is preferred.
             try:
-                # For Pillow 9.0.0 and newer
                 from PIL import Image as PILImage
                 resampling_filter = PILImage.Resampling.LANCZOS
             except AttributeError:
-                # For older versions of Pillow
                 resampling_filter = Image.LANCZOS
 
             image = image.resize((new_width, new_height), resampling_filter)
         # --- MODIFICATION END ---
 
-        # Convert to RGB if needed (JPEG doesn't support some modes like RGBA)
         if image.mode in ("RGBA", "P", "LA"):
             image = image.convert("RGB")
 
-        # Build new filename with .jpg extension
         new_filename = f"{base_filename}.jpg"
-
-        # Save image as JPEG in leaves_folder_path
         image.save(os.path.join(leaves_folder_path, new_filename), "JPEG")
-
         print(f"Saved: {new_filename}")
 
-    # It's assumed that images2points is defined elsewhere in your project
     images2points(os.path.join(folder_path, "leaves")) 
     torch.cuda.empty_cache()
     gc.collect()
 
     return Response(json.dumps({"message": "Files uploaded and points processing initiated."}), status=200, mimetype='application/json')
 
+
+# NEW ENDPOINT to get pages for a manuscript
+@bp.route("/manuscript/<string:manuscript_name>/pages", methods=["GET"])
+def get_manuscript_pages(manuscript_name):
+    """Returns a sorted list of page names (without extension) for a given manuscript."""
+    current_app.logger.info(f"Fetching pages for manuscript: {manuscript_name}")
+    MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
+    leaves_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves")
+
+    if not os.path.isdir(leaves_folder_path):
+        current_app.logger.error(f"Leaves folder not found for manuscript: {manuscript_name}")
+        abort(404, description=f"Manuscript '{manuscript_name}' not found or has no pages.")
+
+    try:
+        page_files = [
+            os.path.splitext(f)[0] for f in os.listdir(leaves_folder_path)
+            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif'))
+        ]
+        sorted_pages = natsorted(page_files)
+        return json.dumps(sorted_pages)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error reading pages for manuscript {manuscript_name}: {e}")
+        return json.dumps({"error": "Could not retrieve page list."}), 500
 
 
 # AUTO GENERATE GRAPH or load previously UPDATED GRAPH
@@ -125,48 +139,36 @@ def get_node_features_and_graph(manuscript_name, page):
     )
     try:
         image = plt.imread(IMAGE_FILEPATH)
-        image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2)) # resize image, because heatmap is half
-        # Store original dimensions
+        image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2))
         height, width = image.shape[:2]
         _image = Image.fromarray((image * 255).astype(np.uint8)) if image.dtype == np.float32 else Image.fromarray(image)
-        # Convert to RGB if not already
         if _image.mode != "RGB":
             _image = _image.convert("RGB")
-        # Send original dimensions in response
         response = {"dimensions": [width, height]}
-        # Convert image to base64 for sending in response
         buffered = io.BytesIO()
-        _image.save(buffered, format="JPEG", quality=85)  # Reduced quality for better performance
+        _image.save(buffered, format="JPEG", quality=85)
         img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
         response["image"] = img_str
         
-        
         if not os.path.exists(POINTS_FILEPATH):
             return {"error": "2D Points not found"}, 404
-        # Load points from file
         with open(POINTS_FILEPATH, "r") as f:
             points_raw = [row.strip().split() for row in f.readlines()]
-        # Convert to numeric values
-        points = [[float(coord) for coord in point] for point in points_raw] ##TODO ADD FEATURES
-        # Always include points in response
+        points = [[float(coord) for coord in point] for point in points_raw]
         response["points"] = points
 
-        # If graph already exist before, load it, else create a new graph in frontend
         graph_file_name = f"{page}_graph_updated.pt"
         full_file_path = os.path.join(GRAPH_FILEPATH, graph_file_name)
-        # Check if the file exists and load it
         if os.path.exists(full_file_path):
             graph_data = handle_load_graph(
                 page_number=page,
                 input_dir=GRAPH_FILEPATH,
-                update=True  # we are loading previously updated graph
+                update=True
             )
             current_app.logger.info("Loaded existing graph")
             response["graph"] = graph_data
         else:
             print(f"Existing graph not found: {full_file_path}, graph will be generated in frontend")
-            # Don't include graph in response - frontend will generate it
-            # response["graph"] will be None/undefined
         return response, 200
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -187,10 +189,7 @@ def save_graph(manuscript_name, page):
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
         )
-        
-        # Save the graph using existing save function
         handle_save_graph(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH)
-        
         current_app.logger.info(f"Saving autogenerated graph for {manuscript_name}, page {page}")
         return {"success": True}, 200
         
@@ -207,62 +206,49 @@ def make_semi_segments(manuscript_name, page):
         POINTS_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset", f"{page}_labels_textline.txt"
         )
+        os.makedirs(os.path.dirname(POINTS_FILEPATH), exist_ok=True)
+        
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
         )
         
-        # Parse request data
         request_data = request.json
 
-        # Extract graph data if available
         if 'graph' in request_data:
             graph_data = request_data['graph']
-            
-            # Save graph for GNN processing
             current_app.logger.info(f"Saving updated Graph for: {manuscript_name}/{page}.")
             handle_save_graph(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH, update=True)
             
-            # Generate labels from connected components in the graph
             current_app.logger.info(f"Generating Labels from updated Graph for: {manuscript_name}/{page}.")
             labels = generate_labels_from_graph(graph_data)
             
-            # Save the labels to the appropriate file
             with open(POINTS_FILEPATH, "w") as f:
                 f.write("\n".join(map(str, labels)))
-            
-            # Also save the modifications log if present
-            # if 'modifications' in request_data:
-            #     modifications_path = os.path.join(GRAPH_FILEPATH, f"{page}_modifications.json")
-            #     with open(modifications_path, 'w') as f:
-            #         json.dump(request_data['modifications'], f, indent=2)
-        
 
-        # Run manual segmentation after saving labels
         segmentLinesFromPointClusters(manuscript_name, page)
         current_app.logger.info(f"Line Segmentation complete with updated graph for {manuscript_name}/{page}.")
 
-
+        # --- MODIFIED RECOGNITION LOGIC ---
+        recognized_line_data = {}  # Default to an empty dictionary
         model_name_from_request = request_data.get("modelName")
-        if not model_name_from_request: # handling error of old version of the app
-            current_app.logger.error("Model name not provided in POST /semi-segment request.")
-            recognized_line_data = ''
-            # return Response(json.dumps({"error": "Model name not provided"}), status=400, mimetype='application/json')
-        else:
-            # NOW, PERFORM CHARACTER RECOGNITION FOR THIS PAGE
-            current_app.logger.info(f"Starting text recognition from segmented line images {manuscript_name}/{page} with model {model_name_from_request}.")
+
+        if model_name_from_request:
+            current_app.logger.info(f"Starting text recognition for {manuscript_name}/{page} with model {model_name_from_request}.")
             manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
             recognized_line_data = recognise_single_page_characters(
                 manuscript_folder_path, model_name_from_request, manuscript_name, page
             )
-            current_app.logger.info(f"Text recognition from segmented line images finished for {manuscript_name}/{page}.")
+            current_app.logger.info(f"Text recognition finished for {manuscript_name}/{page}.")
+        else:
+            current_app.logger.info("No model name provided. Skipping text recognition step.")
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         gc.collect()
 
         return Response(json.dumps({
-            "message": f"Updated Graph, Updated Segmentation, Updated Recognition Done for : {manuscript_name} page {page}",
-            "lines": recognized_line_data # Return the recognized lines for the current page
+            "message": f"Updated Graph and Segmentation for: {manuscript_name} page {page}",
+            "lines": recognized_line_data
         }), status=200, mimetype='application/json')
 
     except Exception as e:
@@ -270,27 +256,19 @@ def make_semi_segments(manuscript_name, page):
         return Response(json.dumps({"error": str(e)}), status=500, mimetype='application/json')
 
 
-
 # GET LINE IMAGES
 @bp.route("/line-images/<manuscript_name>/<page>/<line>", methods=["GET"])
 def serve_line_image(manuscript_name, page, line):
     current_app.logger.info(f"Getting line image ({line}) in  manuscript {manuscript_name},page {page}")
-    # Build the folder and filename exactly how you want them
     base_dir   = current_app.config['DATA_PATH']
     folder     = os.path.join(base_dir, 'manuscripts', manuscript_name, 'lines', page)
     filename   = f"{line}.jpg" 
 
-    # Resolve to an absolute path
     absolute_path = os.path.abspath(os.path.join(folder, filename))
-    exists = os.path.exists(absolute_path)
-    current_app.logger.info("Will serve file", extra={"absolute_path": absolute_path, "exists": exists})
-    # If it’s not on disk, 404
     if not os.path.exists(absolute_path):
         current_app.logger.error(f"Line image not found at path {absolute_path}")
         abort(404)
-
     return send_file(absolute_path, mimetype='image/jpeg')
-
 
 
 # FINE TUNING
@@ -308,20 +286,7 @@ def do_finetune():
     return "Success", 200
 
 
-
-
-
-
-
-
-
-
-
-
-
 # ALL OLD FUNCTIONS BELOW
-
-# OPEN PREVIOUSLY UPLOADED MANUSCRIPTS
 @bp.route("/uploaded-manuscripts", methods=["GET"])
 def get_manuscripts():
     current_app.logger.info("Getting list of already uploaded manuscripts")
@@ -338,12 +303,9 @@ def recognise_manuscript():
     lines = recognise_characters(folder_path, model, manuscript_name)
     return lines, 200
 
-
-# FULLY AUTOMATIC AND RECOGNIZE TEXT CONTENTS (OLD METHOD)
 @bp.route("/upload-manuscript", methods=["POST"])
 def annotate():
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    uploaded_files = request.files
     manuscript_name = request.form["manuscript_name"]
     model = request.form["model"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
@@ -365,7 +327,4 @@ def annotate():
     lines = recognise_characters(folder_path, model, manuscript_name)
     torch.cuda.empty_cache()
     gc.collect()
-    # find_gpu_tensors()
-
     return lines, 200
-

@@ -1,9 +1,9 @@
 <script setup>
-import { useAnnotationStore } from '@/stores/annotationStore';
+import { useAnnotationStore } from '@/stores/annotationStore'
 import { useCssModule } from 'vue'
 import { RouterLink } from 'vue-router'
 const landingPage = useCssModule()
-const annotationStore = useAnnotationStore();
+const annotationStore = useAnnotationStore()
 annotationStore.reset()
 </script>
 
@@ -15,26 +15,33 @@ annotationStore.reset()
     </header>
     <main :class="landingPage.main">
       <div :class="landingPage.links">
+        <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2">
+          New Manuscript <br> (analyze layout)
+        </RouterLink>
 
-    <RouterLink :to="{ name: 'new-manuscript' }" class="btn btn-primary m-2">
-      New Manuscript / Map
-    </RouterLink>
+        <RouterLink :to="{ name: 'edit-manuscript-select' }" class="btn btn-primary m-2">
+          Edit Manuscript <br> (analyze layout)
+        </RouterLink>
 
-    <RouterLink :to="{ name: 'upload-manuscript' }" class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2">
-      old version -- Annotate
-    </RouterLink>
+        <!-- <RouterLink
+          :to="{ name: 'upload-manuscript' }"
+          class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2"
+        >
+          old version -- Annotate
+        </RouterLink> -->
 
-    <RouterLink :to="{ name: 'uploaded-manuscripts' }" class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2">
-      old version -- Uploaded Manuscripts
-    </RouterLink>
-
+        <RouterLink
+          :to="{ name: 'uploaded-manuscripts' }"
+          class="btn btn-primary m-2"
+        >
+          Annotate Text
+        </RouterLink>
       </div>
     </main>
   </div>
 </template>
 
 <style module>
-
 .landing-container {
   display: flex;
   flex-direction: column;
