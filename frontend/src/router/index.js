@@ -32,37 +32,52 @@ const router = createRouter({
       ],
     },
 
-
     {
       path: '/new',
       name: 'new-annotation-view',
       component: () => import('../views/new-AnnotationView.vue'),
       children: [
         {
-          path: '/new/upload',
+          path: 'upload',
           name: 'new-manuscript',
           component: () => import('../components/new-UploadForm.vue'),
         },
         {
-          path: '/new/img-2-txt',                
-          name: 'img-2-txt',                      
+          path: 'img-2-txt',
+          name: 'img-2-txt',
           component: () => import('../components/new-IMG2TXT.vue'),
         },
         {
-          path: '/new/semi-segment',             
-          name: 'new-semi-segment',               
+          path: 'semi-segment',
+          name: 'new-semi-segment',
           component: () => import('../components/new-SemiSegmentationSection.vue'),
-        }
+        },
       ],
     },
 
-    
+    {
+      path: '/edit',
+      component: () => import('../views/new-AnnotationView.vue'), // Reuse the main view wrapper
+      children: [
+        {
+          path: '', // Default path for /edit
+          name: 'edit-manuscript-select',
+          component: () => import('../views/EditSelectionView.vue'),
+        },
+        {
+          path: ':manuscriptName/:pageName',
+          name: 'edit-manuscript-layout',
+          component: () => import('../components/new-SemiSegmentationSection.vue'),
+          props: true, // Pass route params (:manuscriptName, :pageName) as props
+        },
+      ],
+    },
+
     {
       path: '/uploads',
       name: 'uploaded-manuscripts',
       component: () => import('../views/UploadedManuscriptsView.vue'),
     },
-
   ],
 })
 
