@@ -130,13 +130,14 @@ def get_manuscript_pages(manuscript_name):
 def get_node_features_and_graph(manuscript_name, page):
     current_app.logger.info("Getting Manuscript Page, Points and previously updated graph (if available)")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    IMAGE_FILEPATH= os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
-    POINTS_FILEPATH = os.path.join(
-        MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset", f"{page}_inputs_unnormalized.txt"
-    )
+    GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
+    IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
+    POINTS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_inputs_unnormalized.txt")
+    REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
     GRAPH_FILEPATH = os.path.join(
         MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
     )
+
     try:
         image = plt.imread(IMAGE_FILEPATH)
         image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2))
@@ -169,6 +170,16 @@ def get_node_features_and_graph(manuscript_name, page):
             response["graph"] = graph_data
         else:
             print(f"Existing graph not found: {full_file_path}, graph will be generated in frontend")
+        
+        # --- Load Region Labels if they exist ---
+        if os.path.exists(REGION_LABELS_FILEPATH):
+            with open(REGION_LABELS_FILEPATH, "r") as f:
+                # Read labels, strip whitespace, and convert to integer
+                region_labels = [int(line.strip()) for line in f if line.strip()]
+                response["region_labels"] = region_labels
+                current_app.logger.info(f"Loaded region labels for {page}")
+
+
         return response, 200
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -203,10 +214,11 @@ def save_graph(manuscript_name, page):
 def make_semi_segments(manuscript_name, page):
     try:
         MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-        POINTS_FILEPATH = os.path.join(
-            MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset", f"{page}_labels_textline.txt"
-        )
-        os.makedirs(os.path.dirname(POINTS_FILEPATH), exist_ok=True)
+        GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
+        TEXTLINE_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_textline.txt")
+        REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
+
+        os.makedirs(os.path.dirname(TEXTLINE_LABELS_FILEPATH), exist_ok=True)
         
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
@@ -222,8 +234,16 @@ def make_semi_segments(manuscript_name, page):
             current_app.logger.info(f"Generating Labels from updated Graph for: {manuscript_name}/{page}.")
             labels = generate_labels_from_graph(graph_data)
             
-            with open(POINTS_FILEPATH, "w") as f:
+            with open(TEXTLINE_LABELS_FILEPATH, "w") as f:
                 f.write("\n".join(map(str, labels)))
+        
+        # --- Save Region Labels if provided ---
+        if 'regionLabels' in request_data:
+            region_labels = request_data['regionLabels']
+            with open(REGION_LABELS_FILEPATH, "w") as f:
+                f.write("\n".join(map(str, region_labels)))
+            current_app.logger.info(f"Saved region labels for {manuscript_name}/{page}.")
+
 
         segmentLinesFromPointClusters(manuscript_name, page)
         current_app.logger.info(f"Line Segmentation complete with updated graph for {manuscript_name}/{page}.")
