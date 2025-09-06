@@ -1,8 +1,8 @@
 <script setup>
-import { reactive, ref, watch, onMounted } from 'vue'
+import { reactive, ref, watch, onMounted, computed } from 'vue'
 import Sanscript from '@indic-transliteration/sanscript'
 import { useAnnotationStore } from '@/stores/annotationStore'
-import { handleInput } from '../typing-utils/devanagariInputUtils'  // Import the new utility function
+import { handleInput } from '../typing-utils/devanagariInputUtils'
 
 const BASE_PATH = `${import.meta.env.VITE_BACKEND_URL}/line-images`
 
@@ -10,6 +10,7 @@ const props = defineProps(['line_name', 'line_data', 'page_name', 'manuscript_na
 const annotationStore = useAnnotationStore()
 
 const isHK = ref(false)
+const devanagariInput = ref(null)
 
 const textboxClassObject = reactive({
   'form-control': true,
@@ -19,33 +20,56 @@ const textboxClassObject = reactive({
   'is-valid': false,
 })
 
-const devanagari = ref(props.line_data.predicted_label)
-const hk = ref(Sanscript.t(props.line_data.predicted_label, 'devanagari', 'hk'))
+// This computed property is the key. It reads from the store but falls back to the
+// original prop for display, and only writes to the store when changed.
+const devanagariText = computed({
+  get() {
+    return annotationStore.userAnnotations[0]?.annotations?.[props.page_name]?.[props.line_name]?.ground_truth ?? props.line_data.predicted_label
+  },
+  set(newValue) {
+    if (!annotationStore.userAnnotations[0]['annotations'][props.page_name]) {
+      annotationStore.userAnnotations[0]['annotations'][props.page_name] = {}
+    }
+    if (!annotationStore.userAnnotations[0]['annotations'][props.page_name][props.line_name]) {
+      annotationStore.userAnnotations[0]['annotations'][props.page_name][props.line_name] = {}
+    }
+    
+    annotationStore.userAnnotations[0]['annotations'][props.page_name][props.line_name]['ground_truth'] = newValue
+    textboxClassObject['is-valid'] = true
+  }
+})
 
-const devanagariInput = ref(null)
+const hk = ref(Sanscript.t(devanagariText.value, 'devanagari', 'hk'))
 
-watch(hk, function () {
-  if (!isHK.value) return
-  devanagari.value = Sanscript.t(hk.value, 'hk', 'devanagari')
+watch(devanagariText, (newValue) => {
+  if (!isHK.value) {
+    hk.value = Sanscript.t(newValue, 'devanagari', 'hk')
+  }
+})
+
+watch(hk, (newValue) => {
+  if (isHK.value) {
+    devanagariText.value = Sanscript.t(newValue, 'hk', 'devanagari')
+  }
 })
 
 function toggleHK() {
-  hk.value = Sanscript.t(devanagari.value, 'devanagari', 'hk')
   isHK.value = !isHK.value
+  if (isHK.value) {
+    hk.value = Sanscript.t(devanagariText.value, 'devanagari', 'hk')
+  }
 }
 
-function save() {
-  annotationStore.userAnnotations[0]['annotations'][props.page_name][props.line_name] = {}
-  annotationStore.userAnnotations[0]['annotations'][props.page_name][props.line_name][
-    'ground_truth'
-  ] = devanagari.value
-  textboxClassObject['is-valid'] = true
-}
-
-
-const boundHandleInput = (event) => handleInput(event, devanagari)
+const boundHandleInput = (event) => handleInput(event, devanagariText)
 
 onMounted(() => {
+  // We only mark as valid if an annotation *already exists* in the store
+  // (e.g., from a previous edit in the same session).
+  // We no longer pre-populate the store from here.
+  if (annotationStore.userAnnotations[0]?.annotations?.[props.page_name]?.[props.line_name]?.ground_truth) {
+    textboxClassObject['is-valid'] = true
+  }
+    
   if (devanagariInput.value) {
     devanagariInput.value.addEventListener('keydown', boundHandleInput)
   }
@@ -60,12 +84,11 @@ onMounted(() => {
   <div class="annotation-input">
     <input 
       ref="devanagariInput"
-      v-model="devanagari" 
+      v-model="devanagariText" 
       type="text" 
       :class="textboxClassObject" 
     />
     <button class="btn btn-primary mb-2 me-2" @click="toggleHK">Roman</button>
-    <button class="btn btn-success mb-2 me-2" @click="save">Save</button>
   </div>
   <input v-model="hk" type="text" class="form-control mb-2" v-if="isHK" />
 </template>
