@@ -17,7 +17,17 @@
         <div class="toggle-container">
           <label>
             <input type="checkbox" v-model="editModeActive" :disabled="isProcessingSave" />
-            Edit Mode (W)
+            Edge Edit (W)
+          </label>
+        </div>
+        <div class="toggle-container">
+          <label>
+            <input
+              type="checkbox"
+              v-model="regionLabelingModeActive"
+              :disabled="isProcessingSave || !graphIsLoaded"
+            />
+            Region Labeling (R)
           </label>
         </div>
       </div>
@@ -59,7 +69,7 @@
         <svg
           v-if="graphIsLoaded"
           class="graph-overlay"
-          :class="{ 'is-visible': editModeActive }"
+          :class="{ 'is-visible': editModeActive || regionLabelingModeActive }"
           :width="scaledWidth"
           :height="scaledHeight"
           :style="{ cursor: svgCursor }"
@@ -114,15 +124,23 @@
     <div class="bottom-panel">
       <div class="panel-toggle-bar" @click="isControlsCollapsed = !isControlsCollapsed">
         <div class="edit-instructions">
-          <p v-if="isControlsCollapsed && editModeActive">
-            Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle edit with 'w'.
+          <p v-if="isControlsCollapsed && regionLabelingModeActive">
+            Hold 'q' or 'e' and hover over lines to label them. 's' to save.
           </p>
-          <p v-else-if="isControlsCollapsed && !editModeActive">Press 'w' to enter edit mode.</p>
-          <p v-else-if="!isAKeyPressed && !isDKeyPressed">
+          <p v-else-if="isControlsCollapsed && editModeActive">
+            Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle modes with 'w'/'r'.
+          </p>
+          <p v-else-if="isControlsCollapsed && !editModeActive && !regionLabelingModeActive">
+            Press 'w' to edit edges, 'r' to label regions.
+          </p>
+          <p v-else-if="regionLabelingModeActive">
+            Hold 'q' to label Main Text (Blue), 'e' for Commentary (Yellow).
+          </p>
+          <p v-else-if="editModeActive && !isAKeyPressed && !isDKeyPressed">
             Select nodes to manage edges, or use hotkeys.
           </p>
-          <p v-else-if="isAKeyPressed">Release 'A' to connect nodes.</p>
-          <p v-else-if="isDKeyPressed">Release 'D' to stop deleting.</p>
+          <p v-else-if="editModeActive && isAKeyPressed">Release 'A' to connect nodes.</p>
+          <p v-else-if="editModeActive && isDKeyPressed">Release 'D' to stop deleting.</p>
         </div>
         <button class="panel-toggle-btn">
           {{ isControlsCollapsed ? 'Show Controls' : 'Hide Controls' }}
@@ -148,9 +166,9 @@
           </div>
         </div>
 
-        <div v-if="editModeActive && graphIsLoaded" class="modifications-log-container">
+        <div v-if="(editModeActive || regionLabelingModeActive) && graphIsLoaded" class="modifications-log-container">
           <button @click="saveCurrentGraph" :disabled="loading || isProcessingSave">
-            Save Graph
+            Save Graph & Labels
           </button>
           <div v-if="modifications.length > 0" class="modifications-details">
             <h3>Modifications ({{ modifications.length }})</h3>
@@ -167,7 +185,7 @@
               </li>
             </ul>
           </div>
-          <p v-else-if="!loading">No modifications in this session.</p>
+          <p v-else-if="!loading">No edge modifications in this session.</p>
         </div>
       </div>
     </div>
@@ -208,7 +226,8 @@ const imageLoaded = ref(false)
 
 const isToolbarCollapsed = ref(true)
 const isControlsCollapsed = ref(true)
-const editModeActive = ref(true)
+const editModeActive = ref(false)
+const regionLabelingModeActive = ref(false)
 
 const dimensions = ref([0, 0])
 const points = ref([])
@@ -220,9 +239,17 @@ const selectedNodes = ref([])
 const tempEndPoint = ref(null)
 const isDKeyPressed = ref(false)
 const isAKeyPressed = ref(false)
+const isQKeyPressed = ref(false) // For holding Q
+const isEKeyPressed = ref(false) // For holding E
 const hoveredNodesForMST = reactive(new Set())
 const container = ref(null)
 const svgOverlayRef = ref(null)
+
+// --- New state for region labeling ---
+const regionLabels = reactive({}) // Maps node index to region label (0 or 1)
+const textlines = ref({}) // Maps textline ID to a list of node indices
+const nodeToTextlineMap = ref({}) // Maps node index to its textline ID
+const hoveredTextlineId = ref(null)
 
 const scaleFactor = 1.0
 const NODE_HOVER_RADIUS = 7
@@ -242,11 +269,56 @@ const scaleY = (y) => y * scaleFactor
 const graphIsLoaded = computed(() => workingGraph.nodes && workingGraph.nodes.length > 0)
 
 const svgCursor = computed(() => {
+  if (regionLabelingModeActive.value) {
+    if (isQKeyPressed.value || isEKeyPressed.value) return 'crosshair'
+    return 'pointer'
+  }
   if (!editModeActive.value) return 'default'
   if (isAKeyPressed.value) return 'crosshair'
   if (isDKeyPressed.value) return 'not-allowed'
   return 'default'
 })
+
+const computeTextlines = () => {
+  if (!graphIsLoaded.value) return
+  const numNodes = workingGraph.nodes.length
+  const adj = Array(numNodes)
+    .fill(0)
+    .map(() => [])
+  for (const edge of workingGraph.edges) {
+    adj[edge.source].push(edge.target)
+    adj[edge.target].push(edge.source)
+  }
+
+  const visited = new Array(numNodes).fill(false)
+  const newTextlines = {}
+  const newNodeToTextlineMap = {}
+  let currentTextlineId = 0
+
+  for (let i = 0; i < numNodes; i++) {
+    if (!visited[i]) {
+      const component = []
+      const stack = [i]
+      visited[i] = true
+      while (stack.length > 0) {
+        const u = stack.pop()
+        component.push(u)
+        newNodeToTextlineMap[u] = currentTextlineId
+        for (const v of adj[u]) {
+          if (!visited[v]) {
+            visited[v] = true
+            stack.push(v)
+          }
+        }
+      }
+      newTextlines[currentTextlineId] = component
+      currentTextlineId++
+    }
+  }
+
+  textlines.value = newTextlines
+  nodeToTextlineMap.value = newNodeToTextlineMap
+}
 
 const fetchPageData = async (manuscript, page) => {
   if (!manuscript || !page) {
@@ -257,6 +329,7 @@ const fetchPageData = async (manuscript, page) => {
   loading.value = true
   error.value = null
   modifications.value = []
+  Object.keys(regionLabels).forEach((key) => delete regionLabels[key])
 
   try {
     const response = await fetch(
@@ -273,11 +346,19 @@ const fetchPageData = async (manuscript, page) => {
       graph.value = data.graph
     } else if (data.points?.length > 0) {
       graph.value = generateLayoutGraph(data.points)
-      // Only auto-save the initially generated graph in the "New Manuscript" flow
       if (!isEditModeFlow.value) {
         await saveGeneratedGraph(manuscript, page, graph.value)
       }
     }
+    if (data.region_labels) {
+      data.region_labels.forEach((label, index) => {
+        if (label !== -1) {
+          // Assuming -1 means unlabeled
+          regionLabels[index] = label
+        }
+      })
+    }
+
     resetWorkingGraph()
   } catch (err) {
     console.error('Error fetching page data:', err)
@@ -328,15 +409,34 @@ const updateUniqueNodeEdgeCounts = () => {
   nodeEdgeCounts.value = counts
 }
 
-watch(() => workingGraph.edges, updateUniqueNodeEdgeCounts, { deep: true, immediate: true })
+watch(
+  () => workingGraph.edges,
+  () => {
+    updateUniqueNodeEdgeCounts()
+    computeTextlines()
+  },
+  { deep: true, immediate: true }
+)
 
 const resetWorkingGraph = () => {
   workingGraph.nodes = JSON.parse(JSON.stringify(graph.value.nodes || []))
   workingGraph.edges = JSON.parse(JSON.stringify(graph.value.edges || []))
   resetSelection()
+  computeTextlines()
 }
 
 const getNodeColor = (nodeIndex) => {
+  const textlineId = nodeToTextlineMap.value[nodeIndex]
+
+  if (regionLabelingModeActive.value) {
+    if (hoveredTextlineId.value !== null && hoveredTextlineId.value === textlineId) {
+      return '#ff4081' // Hot pink for hovered textline
+    }
+    if (regionLabels[nodeIndex] === 0) return '#448aff' // Blue for main text
+    if (regionLabels[nodeIndex] === 1) return '#ffeb3b' // Yellow for commentary
+    return '#9e9e9e' // Grey for unlabeled nodes in this mode
+  }
+
   if (isAKeyPressed.value && hoveredNodesForMST.has(nodeIndex)) return '#00bcd4'
   if (isNodeSelected(nodeIndex)) return '#ff9500'
 
@@ -347,6 +447,14 @@ const getNodeColor = (nodeIndex) => {
   return '#cccccc'
 }
 const getNodeRadius = (nodeIndex) => {
+  if (regionLabelingModeActive.value) {
+    const textlineId = nodeToTextlineMap.value[nodeIndex]
+    if (hoveredTextlineId.value !== null && hoveredTextlineId.value === textlineId) {
+      return 7
+    }
+    return 5
+  }
+
   const edgeCount = nodeEdgeCounts.value[nodeIndex]
   if (isAKeyPressed.value && hoveredNodesForMST.has(nodeIndex)) return 7
   if (isNodeSelected(nodeIndex)) return 6
@@ -367,7 +475,7 @@ const resetSelection = () => {
   tempEndPoint.value = null
 }
 const onNodeClick = (nodeIndex, event) => {
-  if (isAKeyPressed.value || isDKeyPressed.value) return
+  if (isAKeyPressed.value || isDKeyPressed.value || regionLabelingModeActive.value) return
   event.stopPropagation()
   const existingIndex = selectedNodes.value.indexOf(nodeIndex)
   if (existingIndex !== -1) selectedNodes.value.splice(existingIndex, 1)
@@ -377,41 +485,108 @@ const onNodeClick = (nodeIndex, event) => {
       : (selectedNodes.value = [nodeIndex])
 }
 const onEdgeClick = (edge, event) => {
-  if (isAKeyPressed.value || isDKeyPressed.value) return
+  if (isAKeyPressed.value || isDKeyPressed.value || regionLabelingModeActive.value) return
   event.stopPropagation()
   selectedNodes.value = [edge.source, edge.target]
 }
 const onBackgroundClick = () => {
   if (!isAKeyPressed.value && !isDKeyPressed.value) resetSelection()
 }
+
 const handleSvgMouseMove = (event) => {
-  if (!editModeActive.value || !svgOverlayRef.value) return
+  if (!svgOverlayRef.value) return
   const { left, top } = svgOverlayRef.value.getBoundingClientRect()
   const mouseX = event.clientX - left
   const mouseY = event.clientY - top
 
+  if (regionLabelingModeActive.value) {
+    let foundNode = false
+    let newHoveredTextlineId = null
+
+    for (let i = 0; i < workingGraph.nodes.length; i++) {
+      const node = workingGraph.nodes[i]
+      if (Math.hypot(mouseX - scaleX(node.x), mouseY - scaleY(node.y)) < NODE_HOVER_RADIUS) {
+        newHoveredTextlineId = nodeToTextlineMap.value[i]
+        foundNode = true
+        break
+      }
+    }
+    hoveredTextlineId.value = newHoveredTextlineId
+
+    if (hoveredTextlineId.value !== null) {
+      if (isQKeyPressed.value) {
+        labelTextline(0) // 0 for main text
+      } else if (isEKeyPressed.value) {
+        labelTextline(1) // 1 for commentary
+      }
+    }
+    return
+  }
+
+  if (!editModeActive.value) return
   if (isDKeyPressed.value) handleEdgeHoverDelete(mouseX, mouseY)
   else if (isAKeyPressed.value) handleNodeHoverCollect(mouseX, mouseY)
   else if (selectedNodes.value.length === 1) tempEndPoint.value = { x: mouseX, y: mouseY }
   else tempEndPoint.value = null
 }
+
 const handleSvgMouseLeave = () => {
   if (selectedNodes.value.length === 1) tempEndPoint.value = null
+  hoveredTextlineId.value = null
 }
+
+const labelTextline = (label) => {
+  if (hoveredTextlineId.value === null) return
+  const nodesToLabel = textlines.value[hoveredTextlineId.value]
+  if (nodesToLabel) {
+    nodesToLabel.forEach((nodeIndex) => {
+      regionLabels[nodeIndex] = label
+    })
+  }
+}
+
 const handleGlobalKeyDown = (e) => {
-  if (e.key.toLowerCase() === 'w' && !e.repeat) {
+  const key = e.key.toLowerCase()
+
+  // General hotkeys that work in multiple modes
+  if (key === 's' && !e.repeat) {
+    if (
+      (editModeActive.value || regionLabelingModeActive.value) &&
+      !loading.value &&
+      !isProcessingSave.value
+    ) {
+      e.preventDefault()
+      saveAndGoNext()
+    }
+    return
+  }
+  if (key === 'w' && !e.repeat) {
     e.preventDefault()
     editModeActive.value = !editModeActive.value
     return
   }
+  if (key === 'r' && !e.repeat) {
+    e.preventDefault()
+    regionLabelingModeActive.value = !regionLabelingModeActive.value
+    return
+  }
 
+  // Region labeling specific hotkeys
+  if (regionLabelingModeActive.value && !e.repeat) {
+    if (key === 'q') {
+      e.preventDefault()
+      isQKeyPressed.value = true
+    }
+    if (key === 'e') {
+      e.preventDefault()
+      isEKeyPressed.value = true
+    }
+    return
+  }
+
+  // Edge editing specific hotkeys
   if (!editModeActive.value || e.repeat) return
 
-  const key = e.key.toLowerCase()
-  if (key === 's') {
-    e.preventDefault()
-    if (!loading.value && !isProcessingSave.value) saveAndGoNext()
-  }
   if (key === 'd') {
     e.preventDefault()
     isDKeyPressed.value = true
@@ -424,10 +599,15 @@ const handleGlobalKeyDown = (e) => {
     resetSelection()
   }
 }
+
 const handleGlobalKeyUp = (e) => {
+  const key = e.key.toLowerCase()
+
+  if (key === 'q') isQKeyPressed.value = false
+  if (key === 'e') isEKeyPressed.value = false
+
   if (!editModeActive.value) return
 
-  const key = e.key.toLowerCase()
   if (key === 'd') isDKeyPressed.value = false
   if (key === 'a') {
     isAKeyPressed.value = false
@@ -588,14 +768,18 @@ const saveGeneratedGraph = async (name, page, g) => {
 }
 
 const saveModifications = async () => {
-  // Construct the base request body
+  const numNodes = workingGraph.nodes.length
+  const labelsToSend = new Array(numNodes).fill(-1)
+  for (const nodeIndex in regionLabels) {
+    labelsToSend[nodeIndex] = regionLabels[nodeIndex]
+  }
+
   const requestBody = {
     graph: workingGraph,
     modifications: modifications.value,
+    regionLabels: labelsToSend,
   }
 
-  // Conditionally add modelName only if it exists.
-  // This is the key fix to prevent sending 'default.pth'.
   if (annotationStore.modelName) {
     requestBody.modelName = annotationStore.modelName
   }
@@ -613,14 +797,13 @@ const saveModifications = async () => {
     const data = await res.json()
     graph.value = JSON.parse(JSON.stringify(workingGraph))
     modifications.value = []
-    // If we are in the new manuscript flow and recognition was run, update the store.
     if (!isEditModeFlow.value && data.lines) {
       annotationStore.recognitions[localManuscriptName.value][localCurrentPage.value] = data.lines
     }
     error.value = null
   } catch (err) {
     error.value = err.message
-    throw err // Re-throw to be caught by calling functions
+    throw err
   }
 }
 
@@ -629,7 +812,7 @@ const saveCurrentGraph = async () => {
   isProcessingSave.value = true
   try {
     await saveModifications()
-    alert('Graph saved!')
+    alert('Graph and labels saved!')
   } catch (err) {
     alert(`Save failed: ${err.message}`)
   } finally {
@@ -651,7 +834,7 @@ const confirmAndNavigate = async (navAction) => {
         isProcessingSave.value = false
       }
     } else {
-      modifications.value = [] // Discard changes
+      modifications.value = []
       navAction()
     }
   } else {
@@ -761,12 +944,20 @@ watch(
 )
 
 watch(editModeActive, (isEditing) => {
+  if (isEditing) regionLabelingModeActive.value = false
   if (!isEditing) {
     resetSelection()
     isAKeyPressed.value = false
     isDKeyPressed.value = false
     hoveredNodesForMST.clear()
   }
+})
+watch(regionLabelingModeActive, (isLabeling) => {
+  if (isLabeling) {
+    editModeActive.value = false
+    resetSelection()
+  }
+  hoveredTextlineId.value = null
 })
 </script>
 <style scoped>
@@ -796,6 +987,13 @@ watch(editModeActive, (isEditing) => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+.toggle-container {
+  display: flex;
+  align-items: center;
+  background-color: #3a3a3a;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 /* --- Main Visualization Area --- */
