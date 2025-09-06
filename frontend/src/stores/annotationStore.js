@@ -165,6 +165,7 @@ export const useAnnotationStore = defineStore('annotations', () => {
     for (const annotationsObject of userAnnotations.value) {
       const manuscript_name = annotationsObject['manuscript_name'];
       if (!recognitions.value[manuscript_name]) {
+        print("Recognitions not found for manuscript")
         console.warn(`Recognitions not found for manuscript: ${manuscript_name} during Levenshtein calculation.`);
         continue;
       }

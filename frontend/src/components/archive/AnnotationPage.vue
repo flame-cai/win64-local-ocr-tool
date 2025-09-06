@@ -5,7 +5,10 @@ import AnnotationBlock from './AnnotationBlock.vue'
 const props = defineProps(['data', 'page_name', 'manuscript_name'])
 const annotationStore = useAnnotationStore()
 
-annotationStore.userAnnotations[0]['annotations'][props.page_name] = {}
+// This initialization is still useful. The check prevents overwriting existing data.
+if (!annotationStore.userAnnotations[0]['annotations'][props.page_name]) {
+  annotationStore.userAnnotations[0]['annotations'][props.page_name] = {}
+}
 </script>
 
 <template>
