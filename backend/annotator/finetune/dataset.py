@@ -90,6 +90,7 @@ class Batch_Balanced_Dataset(object):
         Total_batch_size_log += f'{dashed_line}'
         opt.batch_size = Total_batch_size
 
+        print("total batch size log")
         print(Total_batch_size_log)
         log.write(Total_batch_size_log + '\n')
         log.close()
@@ -102,6 +103,7 @@ class Batch_Balanced_Dataset(object):
             try:
                 print(i,data_loader_iter)
                 image, text = next(data_loader_iter)
+                print(text)
                 balanced_batch_images.append(image)
                 balanced_batch_texts += text
             except StopIteration:
@@ -174,7 +176,7 @@ class OCRDataset(Dataset):
 
     def __getitem__(self, index):
         index = self.filtered_index_list[index]
-        print(self.df)
+        # print(self.df)
         img_fname = self.df.at[index,'filename']
         img_fpath = os.path.join(self.root, img_fname)
         label = self.df.at[index,'words']

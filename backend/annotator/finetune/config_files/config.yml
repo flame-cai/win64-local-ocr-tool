@@ -6,7 +6,7 @@ train_data: 'temp'
 valid_data: 'temp/val'
 manualSeed: 1111
 workers: 0
-batch_size: 32 #32
+batch_size: 4 #32
 num_iter: 5
 valInterval: 5
 saved_model: '' #'saved_models/en_filtered/iter_300000.pth'

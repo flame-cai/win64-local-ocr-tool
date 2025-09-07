@@ -39,6 +39,11 @@ def finetune(data):
     annotations = data[0]["annotations"]
     selected_model = data[0]["selected_model"]
     model_name = data[0].get("model_name", f"{manuscript_name}.pth")
+    print("opt details")
+    print(manuscript_name)
+    print(annotations)
+    print(selected_model)
+
 
     opt = get_config(
         os.path.join("annotator", "finetune", "config_files", "config.yml"),
@@ -65,7 +70,11 @@ def finetune(data):
                 csvwriter.writerow(["filename", "words"])
 
     for page in annotations:
-        for line in annotations[page]:
+        print("page name")
+        print(page)
+        for line in annotations[page]: #######yo this shit not working
+            print('line name')
+            print(line)
             ground_truth = annotations[page][line]["ground_truth"]
             image_path = os.path.join(
                 MANUSCRIPTS_PATH, manuscript_name, "lines", page, line + ".jpg"

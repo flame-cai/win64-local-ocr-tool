@@ -812,7 +812,7 @@ const saveCurrentGraph = async () => {
   isProcessingSave.value = true
   try {
     await saveModifications()
-    alert('Graph and labels saved!')
+    // alert('Graph and labels saved!')
   } catch (err) {
     alert(`Save failed: ${err.message}`)
   } finally {
@@ -887,7 +887,7 @@ const saveAndGoNext = async () => {
     if (currentIndex < localPageList.value.length - 1) {
       navigateToPage(localPageList.value[currentIndex + 1])
     } else {
-      alert('Last page saved successfully!')
+      alert('This was the Last page. Saved successfully!')
     }
   } catch (err) {
     alert(`Save failed: ${err.message}`)

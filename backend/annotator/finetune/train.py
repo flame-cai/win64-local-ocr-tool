@@ -25,7 +25,7 @@ def count_parameters(model):
         param = parameter.numel()
         #table.add_row([name, param])
         total_params+=param
-        print(name, param)
+        # print(name, param)
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
@@ -35,6 +35,8 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         print('Filtering the images containing characters which are not in opt.character')
         print('Filtering the images whose label is longer than opt.batch_max_length')
 
+    print("okay, we now finetuning in train(opt)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(opt)
     opt.select_data = opt.select_data.split('-')
     opt.batch_ratio = opt.batch_ratio.split('-')
     train_dataset = Batch_Balanced_Dataset(opt)
@@ -62,9 +64,9 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     if opt.rgb:
         opt.input_channel = 3
     model = Model(opt)
-    print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
-          opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
-          opt.SequenceModeling, opt.Prediction)
+    # print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
+    #       opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
+    #       opt.SequenceModeling, opt.Prediction)
 
     if opt.saved_model != '':
         pretrained_dict = torch.load(opt.saved_model)
@@ -103,8 +105,8 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         model = torch.nn.DataParallel(model).to(device)
     
     model.train() 
-    print("Model:")
-    print(model)
+    # print("Model:")
+    # print(model)
     count_parameters(model)
     
     """ setup loss """
@@ -152,7 +154,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         for k, v in args.items():
             opt_log += f'{str(k)}: {str(v)}\n'
         opt_log += '---------------------------------------\n'
-        print(opt_log)
+        # print(opt_log)
         opt_file.write(opt_log)
 
     """ start training """
@@ -179,6 +181,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         if amp:
             with autocast():
                 image_tensors, labels = train_dataset.get_batch()
+                
                 image = image_tensors.to(device)
                 text, length = converter.encode(labels, batch_max_length=opt.batch_max_length)
                 batch_size = image.size(0)
@@ -258,8 +261,13 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
                 predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
                 
                 #show_number = min(show_number, len(labels))
-                
-                start = random.randint(0,len(labels) - show_number )    
+                print("printing labels")
+                print(str(labels))
+                if len(labels)<show_number:
+                    start=0
+                    show_number=1
+                else:
+                    start = random.randint(0,len(labels) - show_number )    
                 for gt, pred, confidence in zip(labels[start:start+show_number], preds[start:start+show_number], confidence_score[start:start+show_number]):
                     if 'Attn' in opt.Prediction:
                         gt = gt[:gt.find('[s]')]
