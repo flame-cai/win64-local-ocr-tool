@@ -31,6 +31,7 @@ def train(opt):
         print('Filtering the images whose label is longer than opt.batch_max_length')
         # see https://github.com/clovaai/deep-text-recognition-benchmark/blob/6593928855fb7abb999a99f428b3e4477d4ae356/dataset.py#L130
 
+    print('Okay we in train(opt)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     opt.select_data = opt.select_data.split('-')
     opt.batch_ratio = opt.batch_ratio.split('-')
     train_dataset = Batch_Balanced_Dataset(opt)
@@ -61,9 +62,9 @@ def train(opt):
     if opt.rgb:
         opt.input_channel = 3
     model = Model(opt)
-    print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
-          opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
-          opt.SequenceModeling, opt.Prediction)
+    # print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
+    #       opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
+    #       opt.SequenceModeling, opt.Prediction)
 
     # weight initialization
     for name, param in model.named_parameters():
@@ -89,8 +90,8 @@ def train(opt):
             model.module.load_state_dict(torch.load(opt.saved_model, map_location = map_location), strict=False)
         else:
             model.load_state_dict(torch.load(opt.saved_model, map_location = map_location))
-    print("Model:")
-    print(model)
+    # print("Model:")
+    # print(model)
 
     """ setup loss """
     if 'CTC' in opt.Prediction:
