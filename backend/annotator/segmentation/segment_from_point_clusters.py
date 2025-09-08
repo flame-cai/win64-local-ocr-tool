@@ -15,6 +15,9 @@ def resize_with_padding(image, target_size, background_color=(0, 0, 0)):
     Resizes an image to a target size while maintaining its aspect ratio by padding.
     """
     target_w, target_h = target_size
+    if image is None or image.size == 0:
+        return np.full((target_h, target_w, 3), background_color, dtype=np.uint8)
+        
     h, w = image.shape[:2]
 
     if len(image.shape) == 2:
@@ -60,7 +63,7 @@ def visualize_projection_profile(profile, crop_shape, orientation='horizontal', 
             
     return vis_image
 
-def create_debug_collage(original_crop, heatmap_crop, component_viz_img, config):
+def create_debug_collage(original_uncropped, padded_crop, cleaned_blob, component_viz_img, heatmap_crop, config):
     """
     Creates a 2x4 collage of debugging images for a single bounding box.
     """
@@ -69,36 +72,41 @@ def create_debug_collage(original_crop, heatmap_crop, component_viz_img, config)
     FONT_SCALE = 0.4
     FONT_COLOR = (255, 255, 255)
 
+    # Prepare heatmap-related visualizations
     _, bin_heat_crop = cv2.threshold(heatmap_crop, config['BINARIZE_THRESHOLD'], 255, cv2.THRESH_BINARY)
-    
     h_prof_heat = np.sum(bin_heat_crop, axis=1) / 255
     v_prof_heat = np.sum(bin_heat_crop, axis=0) / 255
-
     v_prof_heat_viz = visualize_projection_profile(v_prof_heat, bin_heat_crop.shape, 'vertical', color=(0, 0, 255))
     h_prof_heat_viz = visualize_projection_profile(h_prof_heat, bin_heat_crop.shape, 'horizontal', color=(0, 0, 255))
-
-    orig_crop_tile = resize_with_padding(original_crop, TILE_SIZE)
-    cc_tile = resize_with_padding(component_viz_img, TILE_SIZE)
-    empty_tile = np.zeros((TILE_SIZE[1], TILE_SIZE[0], 3), dtype=np.uint8)
-
     heatmap_colorized = cv2.applyColorMap(heatmap_crop, cv2.COLORMAP_JET)
+
+    # Create resized tiles for the collage
+    orig_uncropped_tile = resize_with_padding(original_uncropped, TILE_SIZE)
+    padded_crop_tile = resize_with_padding(padded_crop, TILE_SIZE)
+    cleaned_blob_tile = resize_with_padding(cleaned_blob, TILE_SIZE)
+    component_viz_tile = resize_with_padding(component_viz_img, TILE_SIZE)
     heat_crop_tile = resize_with_padding(heatmap_colorized, TILE_SIZE)
     v_prof_heat_tile = resize_with_padding(v_prof_heat_viz, TILE_SIZE)
     h_prof_heat_tile = resize_with_padding(h_prof_heat_viz, TILE_SIZE)
     bin_heat_tile = resize_with_padding(bin_heat_crop, TILE_SIZE)
-    
-    cv2.putText(orig_crop_tile, "Original Padded Crop", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
-    cv2.putText(cc_tile, "Analyzed Components", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
+
+    # Add labels to each tile
+    cv2.putText(orig_uncropped_tile, "Original BBox", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
+    cv2.putText(padded_crop_tile, "Padded BBox", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
+    cv2.putText(cleaned_blob_tile, "Cleaned Blob", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
+    cv2.putText(component_viz_tile, "Analyzed Components", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
     cv2.putText(heat_crop_tile, "Heatmap", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
     cv2.putText(v_prof_heat_tile, "V-Profile (Heat)", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
     cv2.putText(h_prof_heat_tile, "H-Profile (Heat)", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
     cv2.putText(bin_heat_tile, "Binarized Heatmap", (5, 15), FONT, FONT_SCALE, FONT_COLOR, 1)
 
-    row1 = cv2.hconcat([orig_crop_tile, cc_tile, empty_tile, empty_tile])
+    # Assemble the collage
+    row1 = cv2.hconcat([orig_uncropped_tile, padded_crop_tile, cleaned_blob_tile, component_viz_tile])
     row2 = cv2.hconcat([heat_crop_tile, v_prof_heat_tile, h_prof_heat_tile, bin_heat_tile])
     collage = cv2.vconcat([row1, row2])
     
     return collage
+
 
 def analyze_and_clean_blob(blob, line_type, config):
     """
@@ -230,9 +238,7 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
     line_bounding_boxes_data = {label: [] for label in unique_labels}
     box_counter = 0
     config = debug_info.get('CONFIG', {}) if debug_info else {}
-    
-    PADDING_RATIO_V = 0.4 
-    PADDING_RATIO_H = 0.4 
+
 
     for l in unique_labels:
         filtered_boxes = [box for box in bounding_boxes if box[4] == l]
@@ -240,6 +246,13 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
             continue
 
         line_type, params = detect_line_type(filtered_boxes)
+
+        if line_type == 'horizontal':
+            PADDING_RATIO_V = 0.7 
+            PADDING_RATIO_H = 0.5
+        else:
+            PADDING_RATIO_V = 0.5 
+            PADDING_RATIO_H = 0.7        
         
         cleaned_blobs_for_line = []
         final_coords_for_line = []
@@ -248,6 +261,9 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
             box_counter += 1
             orig_x, orig_y, orig_w, orig_h, _ = box
             try:
+                # Get the original, unpadded crop for debugging.
+                original_uncropped_blob = img[orig_y:orig_y + orig_h, orig_x:orig_x + orig_w]
+                
                 # Use dynamic, ratio-based padding for the initial crop to help cleaning.
                 dynamic_pad_v = int(orig_h * PADDING_RATIO_V)
                 dynamic_pad_h = int(orig_w * PADDING_RATIO_H)
@@ -264,6 +280,14 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
                 cleaned_blob, component_viz_img, crop_coords = analyze_and_clean_blob(blob, line_type, config)
                 
                 if cleaned_blob.size == 0:
+                    if debug_mode and debug_info:
+                        # Even if the blob is empty, save a debug collage to see why
+                        det_resized = debug_info.get('det_resized')
+                        if det_resized is not None:
+                            heatmap_crop = det_resized[y1:y2, x1:x2]
+                            collage = create_debug_collage(original_uncropped_blob, blob, cleaned_blob, 
+                                                           component_viz_img, heatmap_crop, config)
+                            cv2.imwrite(os.path.join(debug_info['DEBUG_DIR'], f"line_{l:03d}_box_{box_counter:04d}_EMPTY.jpg"), collage)
                     continue
 
                 c_top, _, c_left, _ = crop_coords
@@ -281,7 +305,8 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
                     if det_resized is not None:
                         heatmap_crop = det_resized[y1:y2, x1:x2]
                         if heatmap_crop.size > 0:
-                            collage = create_debug_collage(blob, heatmap_crop, component_viz_img, config)
+                            collage = create_debug_collage(original_uncropped_blob, blob, cleaned_blob,
+                                                           component_viz_img, heatmap_crop, config)
                             cv2.imwrite(os.path.join(debug_info['DEBUG_DIR'], f"line_{l:03d}_box_{box_counter:04d}.jpg"), collage)
 
             except Exception as e:
