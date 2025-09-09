@@ -17,7 +17,6 @@ dependencies:
   - matplotlib
   - pytorch==2.4.1
   - torchvision
-  - torch-geometric
   - pytorch-cuda=12.1 
   - pyg
   - flask
@@ -32,6 +31,7 @@ dependencies:
   - natsort
   - pyyaml
   - pip:
+      - torch-geometric
       - lmdb
       - nltk
       - python-json-logger
