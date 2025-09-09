@@ -229,7 +229,7 @@ def crop_img(img):
     y1, x1 = coords.max(axis=0) + 1
     return img[y0:y1, x0:x1]
 
-def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_info=None):
+def get_bboxes_for_lines(img, unique_labels, bounding_boxes, debug_mode=False, debug_info=None):
     """
     Generates cropped line images. Uses DYNAMIC PADDING for the initial cleaning crop
     and STATIC PADDING from the config for the final canvas border.
@@ -314,46 +314,47 @@ def gen_line_images(img, unique_labels, bounding_boxes, debug_mode=False, debug_
         
         line_bounding_boxes_data[l] = final_coords_for_line
         
-        if not cleaned_blobs_for_line:
-            continue
+        # if not cleaned_blobs_for_line:
+        #     continue
 
-        coords_with_label = [coords + [l] for coords in final_coords_for_line]
-        transformed_coords = normalize_coordinates(transform_boxes_to_horizontal(coords_with_label, line_type, params))
+        # coords_with_label = [coords + [l] for coords in final_coords_for_line]
+        # transformed_coords = normalize_coordinates(transform_boxes_to_horizontal(coords_with_label, line_type, params))
         
-        min_x = min(b[0] for b in transformed_coords)
-        max_x = max(b[0] + b[2] for b in transformed_coords)
-        min_y = min(b[1] for b in transformed_coords)
-        max_y = max(b[1] + b[3] for b in transformed_coords)
+        # min_x = min(b[0] for b in transformed_coords)
+        # max_x = max(b[0] + b[2] for b in transformed_coords)
+        # min_y = min(b[1] for b in transformed_coords)
+        # max_y = max(b[1] + b[3] for b in transformed_coords)
         
-        # --- START OF CHANGE: Use CONFIG values for the final canvas border ---
-        # Use the static padding values from the main CONFIG for the final canvas.
-        # This creates a consistent, generous border on the output images.
-        final_canvas_pad_v = config.get('LINE_GEN_PAD_V', 15) # Default to 15 if not in config
-        final_canvas_pad_h = config.get('LINE_GEN_PAD_H', 15) # Default to 15 if not in config
+        # # --- START OF CHANGE: Use CONFIG values for the final canvas border ---
+        # # Use the static padding values from the main CONFIG for the final canvas.
+        # # This creates a consistent, generous border on the output images.
+        # final_canvas_pad_v = config.get('LINE_GEN_PAD_V', 15) # Default to 15 if not in config
+        # final_canvas_pad_h = config.get('LINE_GEN_PAD_H', 15) # Default to 15 if not in config
 
-        canvas_h = max_y - min_y + (2 * final_canvas_pad_v)
-        canvas_w = max_x - min_x + (2 * final_canvas_pad_h)
-        new_img = np.ones((canvas_h, canvas_w), dtype=np.uint8) * config['PAGE_MEDIAN_COLOR']
+        # canvas_h = max_y - min_y + (2 * final_canvas_pad_v)
+        # canvas_w = max_x - min_x + (2 * final_canvas_pad_h)
+        # new_img = np.ones((canvas_h, canvas_w), dtype=np.uint8) * config['PAGE_MEDIAN_COLOR']
 
-        for blob, t_coords in zip(cleaned_blobs_for_line, transformed_coords):
-            if line_type == 'vertical':
-                blob = cv2.rotate(blob, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        # for blob, t_coords in zip(cleaned_blobs_for_line, transformed_coords):
+        #     if line_type == 'vertical':
+        #         blob = cv2.rotate(blob, cv2.ROTATE_90_COUNTERCLOCKWISE)
             
-            target_x = t_coords[0] - min_x + final_canvas_pad_h
-            target_y = t_coords[1] - min_y + final_canvas_pad_v
-            # --- END OF CHANGE ---
+        #     target_x = t_coords[0] - min_x + final_canvas_pad_h
+        #     target_y = t_coords[1] - min_y + final_canvas_pad_v
+        #     # --- END OF CHANGE ---
             
-            h_b, w_b = blob.shape[:2]
-            h_n, w_n = new_img.shape[:2]
+        #     h_b, w_b = blob.shape[:2]
+        #     h_n, w_n = new_img.shape[:2]
 
-            if target_y < h_n and target_x < w_n:
-                y_end = min(target_y + h_b, h_n)
-                x_end = min(target_x + w_b, w_n)
-                new_img[target_y:y_end, target_x:x_end] = blob[:y_end-target_y, :x_end-target_x]
+        #     if target_y < h_n and target_x < w_n:
+        #         y_end = min(target_y + h_b, h_n)
+        #         x_end = min(target_x + w_b, w_n)
+        #         new_img[target_y:y_end, target_x:x_end] = blob[:y_end-target_y, :x_end-target_x]
         
-        line_images_data.append({'image': crop_img(new_img), 'label': l})
+        # line_images_data.append({'image': crop_img(new_img), 'label': l})
         
-    return line_images_data, line_bounding_boxes_data
+    return line_bounding_boxes_data
+
 
 def find_closest_points_between_contours(c1, c2):
     """
@@ -435,8 +436,10 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
         os.makedirs(POLY_VISUALIZATIONS_DIR)
         debug_info = {"DEBUG_DIR": DEBUG_DIR, "det_resized": det_resized, "CONFIG": CONFIG}
 
-    line_images_data, line_bounding_boxes_data = gen_line_images(processing_image, unique_labels, labeled_bboxes,
+    line_bounding_boxes_data = get_bboxes_for_lines(processing_image, unique_labels, labeled_bboxes,
         debug_mode=(upscale_heatmap and debug_mode), debug_info=debug_info)
+    # TODO, do not use this line_images_data. In the below code, when saving polygons, crop the polygons from the original image, then enclose them in a bbox, and save that bbox as the line image.
+
     
     poly_viz_page_img = image.copy()
     colors = [plt.cm.get_cmap('hsv', len(unique_labels) + 1)(i) for i in range(len(unique_labels))]
@@ -508,25 +511,38 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
 
         if contours:
             polygon = max(contours, key=cv2.contourArea)
-            line_data_index = next((i for i, data in enumerate(line_images_data) if data['label'] == line_label), None)
+            # line_data_index = next((i for i, data in enumerate(line_images_data) if data['label'] == line_label), None)
             
-            if line_data_index is not None:
-                line_filename_base = f"line{line_data_index+1:03d}"
-                polygon_points_xy = [point[0].tolist() for point in polygon]
-                with open(os.path.join(POLYGON_DIR, f"{line_filename_base}.json"), 'w') as f:
-                    json.dump(polygon_points_xy, f)
+            # if line_data_index is not None:
+            line_filename_base = f"line{line_label+1:03d}"
+            polygon_points_xy = [point[0].tolist() for point in polygon]
+            with open(os.path.join(POLYGON_DIR, f"{line_filename_base}.json"), 'w') as f:
+                json.dump(polygon_points_xy, f)
 
-                if upscale_heatmap and debug_mode:
-                    color_idx = label_to_color_idx.get(line_label, 0)
-                    color = tuple(c * 255 for c in colors[color_idx][:3])
-                    cv2.drawContours(poly_viz_page_img, [polygon], -1, color, 2)
+            if upscale_heatmap and debug_mode:
+                color_idx = label_to_color_idx.get(line_label, 0)
+                color = tuple(c * 255 for c in colors[color_idx][:3])
+                cv2.drawContours(poly_viz_page_img, [polygon], -1, color, 2)
+            
+            # Save the cropped polygon area as the line image
+            x, y, w, h = cv2.boundingRect(polygon) 
+            cropped_line_image = processing_image[y:y+h, x:x+w]
+            new_img = np.ones(cropped_line_image.shape, dtype=np.uint8) * CONFIG['PAGE_MEDIAN_COLOR']
+            #TODO copy and paste only the contents of the 'polygon' from image.copy into new_img, with the right positioning.
+            mask_polygon = np.zeros(cropped_line_image.shape[:2], dtype=np.uint8)
+            polygon_shifted = polygon - [x, y]
+            cv2.drawContours(mask_polygon, [polygon_shifted], -1, 255, -1)
+            new_img[mask_polygon == 255] = cropped_line_image[mask_polygon == 255]
+            cv2.imwrite(os.path.join(LINES_DIR, f"{line_filename_base}.jpg"), new_img)
 
-    for i, data in enumerate(line_images_data):
-        cv2.imwrite(os.path.join(LINES_DIR, f"line{i+1:03d}.jpg"), data['image'])
+
+
+    # for i, data in enumerate(line_images_data):
+    #     cv2.imwrite(os.path.join(LINES_DIR, f"line{i+1:03d}.jpg"), data['image'])
     
     if upscale_heatmap and debug_mode:
         viz_path = os.path.join(POLY_VISUALIZATIONS_DIR, f"{page}_all_polygons.jpg")
         cv2.imwrite(viz_path, poly_viz_page_img)
         print(f"Polygon visualization saved to {viz_path}")
 
-    print(f"Successfully generated and saved {len(line_images_data)} line images and associated data.")
+    print(f"Successfully generated and saved {len(unique_labels)} line images and associated data.")
