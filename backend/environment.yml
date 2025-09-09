@@ -21,6 +21,8 @@ dependencies:
   - pyg
   - flask
   - flask-cors
+  - torch-geometric
+  - torch-spline-conv
   - flask-sqlalchemy
   - werkzeug
   - pillow
