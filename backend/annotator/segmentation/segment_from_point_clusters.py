@@ -1,3 +1,5 @@
+# segment_from_point_clusters.py
+
 import os
 import shutil
 import numpy as np
@@ -9,6 +11,54 @@ import json
 import matplotlib.pyplot as plt
 from annotator.segmentation.utils import loadImage
 from flask import current_app
+
+
+# segment_from_point_clusters.py (Add this helper function)
+
+from collections import defaultdict
+
+def _generate_baselines_from_textline_points(points_filepath, textline_labels_filepath):
+    """
+    Generates baseline polylines by grouping points using their textline labels.
+
+    This is the precise fix: It assumes the points themselves trace the path of the
+    baseline and uses the textline label file to group them correctly. This removes
+    the dependency on the non-existent '_labels_baseline.txt' file.
+
+    Returns:
+        A dictionary mapping each textline label to its baseline polyline.
+    """
+    baselines = {}
+    if not all(os.path.exists(p) for p in [points_filepath, textline_labels_filepath]):
+        current_app.logger.warning("Points or textline label file not found. Cannot generate baselines.")
+        return baselines
+
+    try:
+        all_points = np.loadtxt(points_filepath, dtype=int)
+        with open(textline_labels_filepath, "r") as f:
+            textline_labels = [int(line.strip()) for line in f if line.strip()]
+        
+        assert len(all_points) == len(textline_labels), \
+            "Point and textline label files must have the same number of entries."
+
+        points_per_textline = defaultdict(list)
+        for point, t_label in zip(all_points, textline_labels):
+            if t_label > -1:
+                points_per_textline[t_label].append(point.tolist())
+
+        for t_label, points in points_per_textline.items():
+            if points:
+                # Sort points by x-coordinate to form a proper left-to-right polyline
+                sorted_points = sorted(points, key=lambda p: p[0])
+                baselines[t_label] = sorted_points
+        
+        current_app.logger.info(f"Successfully generated {len(baselines)} baselines from textline points.")
+
+    except Exception as e:
+        current_app.logger.error(f"Error generating baselines from textline points: {e}", exc_info=True)
+        return {}
+
+    return baselines
 
 def resize_with_padding(image, target_size, background_color=(0, 0, 0)):
     """
@@ -316,45 +366,6 @@ def get_bboxes_for_lines(img, unique_labels, bounding_boxes, debug_mode=False, d
         
         line_bounding_boxes_data[l] = final_coords_for_line
         
-        # if not cleaned_blobs_for_line:
-        #     continue
-
-        # coords_with_label = [coords + [l] for coords in final_coords_for_line]
-        # transformed_coords = normalize_coordinates(transform_boxes_to_horizontal(coords_with_label, line_type, params))
-        
-        # min_x = min(b[0] for b in transformed_coords)
-        # max_x = max(b[0] + b[2] for b in transformed_coords)
-        # min_y = min(b[1] for b in transformed_coords)
-        # max_y = max(b[1] + b[3] for b in transformed_coords)
-        
-        # # --- START OF CHANGE: Use CONFIG values for the final canvas border ---
-        # # Use the static padding values from the main CONFIG for the final canvas.
-        # # This creates a consistent, generous border on the output images.
-        # final_canvas_pad_v = config.get('LINE_GEN_PAD_V', 15) # Default to 15 if not in config
-        # final_canvas_pad_h = config.get('LINE_GEN_PAD_H', 15) # Default to 15 if not in config
-
-        # canvas_h = max_y - min_y + (2 * final_canvas_pad_v)
-        # canvas_w = max_x - min_x + (2 * final_canvas_pad_h)
-        # new_img = np.ones((canvas_h, canvas_w), dtype=np.uint8) * config['PAGE_MEDIAN_COLOR']
-
-        # for blob, t_coords in zip(cleaned_blobs_for_line, transformed_coords):
-        #     if line_type == 'vertical':
-        #         blob = cv2.rotate(blob, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            
-        #     target_x = t_coords[0] - min_x + final_canvas_pad_h
-        #     target_y = t_coords[1] - min_y + final_canvas_pad_v
-        #     # --- END OF CHANGE ---
-            
-        #     h_b, w_b = blob.shape[:2]
-        #     h_n, w_n = new_img.shape[:2]
-
-        #     if target_y < h_n and target_x < w_n:
-        #         y_end = min(target_y + h_b, h_n)
-        #         x_end = min(target_x + w_b, w_n)
-        #         new_img[target_y:y_end, target_x:x_end] = blob[:y_end-target_y, :x_end-target_x]
-        
-        # line_images_data.append({'image': crop_img(new_img), 'label': l})
-        
     return line_bounding_boxes_data
 
 
@@ -380,29 +391,45 @@ def find_closest_points_between_contours(c1, c2):
                 closest_pts = (tuple(p1[0]), tuple(p2[0]))
                 
     return closest_pts, min_dist
+# segment_from_point_clusters.py (Modified main function)
+
+
 
 def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, debug_mode=True):
-    # TODO this function needs to return textline polygons as well.
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "images", f"{page}.jpg")
+    IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
-    POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "gnn-dataset", f"{page}_inputs_unnormalized.txt")
-    LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "gnn-dataset", f"{page}_labels_textline.txt")
+    GNN_DATA_PATH = os.path.join(BASE_PATH, manuscript_name, "gnn-dataset")
+    POINTS_FILEPATH = os.path.join(GNN_DATA_PATH, f"{page}_inputs_unnormalized.txt")
+    TEXTLINE_LABELS_FILEPATH = os.path.join(GNN_DATA_PATH, f"{page}_labels_textline.txt")
     LINES_DIR = os.path.join(BASE_PATH, manuscript_name, "lines", page)
     DEBUG_DIR = os.path.join(BASE_PATH, manuscript_name, "debug", page)
     POLYGON_DIR = os.path.join(BASE_PATH, manuscript_name, "polygons", page)
     POLY_VISUALIZATIONS_DIR = os.path.join(DEBUG_DIR, "poly_visualizations")
+
+    textline_polygons = {}
+    baselines = {}
 
     for d in [LINES_DIR, POLYGON_DIR]:
         if os.path.exists(d): shutil.rmtree(d)
         os.makedirs(d)
 
     image = loadImage(IMAGE_FILEPATH)
+    if image is None:
+        error_msg = f"Failed to load image at path: {IMAGE_FILEPATH}"
+        current_app.logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+
     det = loadImage(HEATMAP_FILEPATH)
+    if det is None:
+        error_msg = f"Failed to load heatmap at path: {HEATMAP_FILEPATH}"
+        current_app.logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+        
     if det.ndim == 3: det = det[:, :, 0]
 
     h_img, w_img = image.shape[:2]; h_heat, w_heat = det.shape[:2]
-    features, labels = load_node_features_and_labels(POINTS_FILEPATH, LABELS_FILEPATH)
+    features, labels = load_node_features_and_labels(POINTS_FILEPATH, TEXTLINE_LABELS_FILEPATH)
 
     if upscale_heatmap:
         det_resized = cv2.resize(det, (w_img, h_img), interpolation=cv2.INTER_LINEAR)
@@ -415,15 +442,11 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
         det_resized = det
         processing_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # --- START OF CHANGE: Updated CONFIG values ---
     CONFIG = {
-        'BINARIZE_THRESHOLD': 0.5098, #between 0 and 1
-        # 'LINE_GEN_PAD_V': 30, 
-        # 'LINE_GEN_PAD_H': 30,
+        'BINARIZE_THRESHOLD': 0.5098,
         'CC_SIZE_THRESHOLD_RATIO': 0.4, 
         'PAGE_MEDIAN_COLOR': int(np.median(processing_image))
     }
-    # --- END OF CHANGE ---
 
     bounding_boxes = gen_bounding_boxes(det_resized, CONFIG['BINARIZE_THRESHOLD'])
     labeled_bboxes = assign_labels_and_plot(bounding_boxes, features, labels, image.copy(),
@@ -441,11 +464,12 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
 
     line_bounding_boxes_data = get_bboxes_for_lines(processing_image, unique_labels, labeled_bboxes,
         debug_mode=(upscale_heatmap and debug_mode), debug_info=debug_info)
-
     
     poly_viz_page_img = image.copy()
     colors = [plt.cm.get_cmap('hsv', len(unique_labels) + 1)(i) for i in range(len(unique_labels))]
     label_to_color_idx = {label: i for i, label in enumerate(unique_labels)}
+
+    baselines = _generate_baselines_from_textline_points(POINTS_FILEPATH, TEXTLINE_LABELS_FILEPATH)
 
     for line_label, cleaned_boxes in line_bounding_boxes_data.items():
         if not cleaned_boxes: continue
@@ -454,23 +478,24 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
         for (x, y, w, h) in cleaned_boxes:
             cv2.rectangle(mask, (x, y), (x + w, y + h), 255, -1)
         
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # --- START OF THE PRECISE FIX ---
+        # First, find the initial disconnected contours
+        initial_contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        if len(contours) > 1:
+        # Now, use your original, robust bridging logic to modify the mask
+        if len(initial_contours) > 1:
             avg_line_height = np.mean([box[3] for box in cleaned_boxes])
-            box_groups = [[] for _ in contours]
+            box_groups = [[] for _ in initial_contours]
             for box in cleaned_boxes:
                 center_x, center_y = box[0] + box[2] // 2, box[1] + box[3] // 2
-                for i, contour in enumerate(contours):
+                for i, contour in enumerate(initial_contours):
                     point_to_test = (float(center_x), float(center_y))
                     if cv2.pointPolygonTest(contour, point_to_test, False) >= 0:
                         box_groups[i].append(box)
                         break
             
             box_groups = [group for group in box_groups if group]
-            if len(box_groups) <=1:
-                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            else:
+            if len(box_groups) > 1:
                 connected_groups = [box_groups[0]]
                 unconnected_groups = box_groups[1:]
 
@@ -505,19 +530,26 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
                         bridge_x1 = left_box[0] + left_box[2]
                         bridge_x2 = right_box[0]
                         
+                        # Your logic correctly modifies the mask here
                         cv2.rectangle(mask, (bridge_x1, bridge_y1), (bridge_x2, bridge_y2), 255, -1)
 
-                    connected_groups.append(unconnected_groups.pop(group_to_add_index))
+                    if unconnected_groups and group_to_add_index != -1:
+                        connected_groups.append(unconnected_groups.pop(group_to_add_index))
+                    else:
+                        break # Exit if no more groups can be connected
 
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        if contours:
-            polygon = max(contours, key=cv2.contourArea)
-            # line_data_index = next((i for i, data in enumerate(line_images_data) if data['label'] == line_label), None)
+        # After the mask has been finalized with bridges, find the definitive contour(s) from it.
+        final_contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if final_contours:
+            # The largest contour on the FINAL mask is the correct polygon for the entire line.
+            polygon = max(final_contours, key=cv2.contourArea)
+            # --- END OF THE PRECISE FIX ---
             
-            # if line_data_index is not None:
-            line_filename_base = f"line{line_label+1:03d}"
             polygon_points_xy = [point[0].tolist() for point in polygon]
+            textline_polygons[line_label] = polygon_points_xy
+
+            line_filename_base = f"line{line_label+1:03d}"
             with open(os.path.join(POLYGON_DIR, f"{line_filename_base}.json"), 'w') as f:
                 json.dump(polygon_points_xy, f)
 
@@ -526,7 +558,7 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
                 color = tuple(c * 255 for c in colors[color_idx][:3])
                 cv2.drawContours(poly_viz_page_img, [polygon], -1, color, 2)
             
-            # Save the cropped polygon area as the line image
+            # The line saving logic now uses the same, complete polygon
             x, y, w, h = cv2.boundingRect(polygon) 
             cropped_line_image = processing_image[y:y+h, x:x+w]
             new_img = np.ones(cropped_line_image.shape, dtype=np.uint8) * CONFIG['PAGE_MEDIAN_COLOR']
@@ -536,14 +568,11 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
             new_img[mask_polygon == 255] = cropped_line_image[mask_polygon == 255]
             cv2.imwrite(os.path.join(LINES_DIR, f"{line_filename_base}.jpg"), new_img)
 
-
-
-    # for i, data in enumerate(line_images_data):
-    #     cv2.imwrite(os.path.join(LINES_DIR, f"line{i+1:03d}.jpg"), data['image'])
-    
     if upscale_heatmap and debug_mode:
         viz_path = os.path.join(POLY_VISUALIZATIONS_DIR, f"{page}_all_polygons.jpg")
         cv2.imwrite(viz_path, poly_viz_page_img)
         print(f"Polygon visualization saved to {viz_path}")
 
     print(f"Successfully generated and saved {len(unique_labels)} line images and associated data.")
+    
+    return textline_polygons, baselines
