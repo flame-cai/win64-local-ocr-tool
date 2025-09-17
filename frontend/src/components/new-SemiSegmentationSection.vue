@@ -125,7 +125,8 @@
       <div class="panel-toggle-bar" @click="isControlsCollapsed = !isControlsCollapsed">
         <div class="edit-instructions">
           <p v-if="isControlsCollapsed && regionLabelingModeActive">
-            Hold 'q' or 'e' and hover over lines to label them. 's' to save.
+            Hold 'e' and hover over lines to label them. Release 'e' and press again for the next
+            label. 's' to save.
           </p>
           <p v-else-if="isControlsCollapsed && editModeActive">
             Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle modes with 'w'/'r'.
@@ -134,7 +135,8 @@
             Press 'w' to edit edges, 'r' to label regions.
           </p>
           <p v-else-if="regionLabelingModeActive">
-            Hold 'q' to label Main Text (Blue), 'e' for Commentary (Yellow).
+            Hold 'e' to label textlines with the current label. Release and press 'e' again to move
+            to the next label.
           </p>
           <p v-else-if="editModeActive && !isAKeyPressed && !isDKeyPressed">
             Select nodes to manage edges, or use hotkeys.
@@ -166,7 +168,10 @@
           </div>
         </div>
 
-        <div v-if="(editModeActive || regionLabelingModeActive) && graphIsLoaded" class="modifications-log-container">
+        <div
+          v-if="(editModeActive || regionLabelingModeActive) && graphIsLoaded"
+          class="modifications-log-container"
+        >
           <button @click="saveCurrentGraph" :disabled="loading || isProcessingSave">
             Save Graph & Labels
           </button>
@@ -239,17 +244,18 @@ const selectedNodes = ref([])
 const tempEndPoint = ref(null)
 const isDKeyPressed = ref(false)
 const isAKeyPressed = ref(false)
-const isQKeyPressed = ref(false) // For holding Q
 const isEKeyPressed = ref(false) // For holding E
 const hoveredNodesForMST = reactive(new Set())
 const container = ref(null)
 const svgOverlayRef = ref(null)
 
-// --- New state for region labeling ---
-const regionLabels = reactive({}) // Maps node index to region label (0 or 1)
+// --- State for region labeling ---
+const regionLabels = reactive({}) // Maps node index to a region label (0, 1, 2...)
 const textlines = ref({}) // Maps textline ID to a list of node indices
 const nodeToTextlineMap = ref({}) // Maps node index to its textline ID
 const hoveredTextlineId = ref(null)
+const currentLabelIndex = ref(0) // The current label to apply (0, 1, 2, ...)
+const labelColors = ['#448aff', '#ffeb3b', '#4CAF50', '#f44336', '#9c27b0', '#ff9800'] // Colors for different labels
 
 const scaleFactor = 1.0
 const NODE_HOVER_RADIUS = 7
@@ -270,7 +276,7 @@ const graphIsLoaded = computed(() => workingGraph.nodes && workingGraph.nodes.le
 
 const svgCursor = computed(() => {
   if (regionLabelingModeActive.value) {
-    if (isQKeyPressed.value || isEKeyPressed.value) return 'crosshair'
+    if (isEKeyPressed.value) return 'crosshair'
     return 'pointer'
   }
   if (!editModeActive.value) return 'default'
@@ -353,7 +359,6 @@ const fetchPageData = async (manuscript, page) => {
     if (data.region_labels) {
       data.region_labels.forEach((label, index) => {
         if (label !== -1) {
-          // Assuming -1 means unlabeled
           regionLabels[index] = label
         }
       })
@@ -432,8 +437,10 @@ const getNodeColor = (nodeIndex) => {
     if (hoveredTextlineId.value !== null && hoveredTextlineId.value === textlineId) {
       return '#ff4081' // Hot pink for hovered textline
     }
-    if (regionLabels[nodeIndex] === 0) return '#448aff' // Blue for main text
-    if (regionLabels[nodeIndex] === 1) return '#ffeb3b' // Yellow for commentary
+    const label = regionLabels[nodeIndex]
+    if (label !== undefined && label > -1) {
+      return labelColors[label % labelColors.length]
+    }
     return '#9e9e9e' // Grey for unlabeled nodes in this mode
   }
 
@@ -513,12 +520,8 @@ const handleSvgMouseMove = (event) => {
     }
     hoveredTextlineId.value = newHoveredTextlineId
 
-    if (hoveredTextlineId.value !== null) {
-      if (isQKeyPressed.value) {
-        labelTextline(0) // 0 for main text
-      } else if (isEKeyPressed.value) {
-        labelTextline(1) // 1 for commentary
-      }
+    if (hoveredTextlineId.value !== null && isEKeyPressed.value) {
+      labelTextline()
     }
     return
   }
@@ -535,12 +538,12 @@ const handleSvgMouseLeave = () => {
   hoveredTextlineId.value = null
 }
 
-const labelTextline = (label) => {
+const labelTextline = () => {
   if (hoveredTextlineId.value === null) return
   const nodesToLabel = textlines.value[hoveredTextlineId.value]
   if (nodesToLabel) {
     nodesToLabel.forEach((nodeIndex) => {
-      regionLabels[nodeIndex] = label
+      regionLabels[nodeIndex] = currentLabelIndex.value
     })
   }
 }
@@ -573,10 +576,6 @@ const handleGlobalKeyDown = (e) => {
 
   // Region labeling specific hotkeys
   if (regionLabelingModeActive.value && !e.repeat) {
-    if (key === 'q') {
-      e.preventDefault()
-      isQKeyPressed.value = true
-    }
     if (key === 'e') {
       e.preventDefault()
       isEKeyPressed.value = true
@@ -603,8 +602,10 @@ const handleGlobalKeyDown = (e) => {
 const handleGlobalKeyUp = (e) => {
   const key = e.key.toLowerCase()
 
-  if (key === 'q') isQKeyPressed.value = false
-  if (key === 'e') isEKeyPressed.value = false
+  if (regionLabelingModeActive.value && key === 'e') {
+    isEKeyPressed.value = false
+    currentLabelIndex.value++ // Increment label for the next group
+  }
 
   if (!editModeActive.value) return
 
@@ -956,6 +957,7 @@ watch(regionLabelingModeActive, (isLabeling) => {
   if (isLabeling) {
     editModeActive.value = false
     resetSelection()
+    currentLabelIndex.value = 0 // Reset to the first label when entering mode
   }
   hoveredTextlineId.value = null
 })

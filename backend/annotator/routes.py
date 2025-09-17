@@ -54,7 +54,7 @@ def new_process_manuscript():
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     manuscript_name = request.form["manuscript_name"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-    leaves_folder_path = os.path.join(folder_path, "leaves")
+    leaves_folder_path = os.path.join(folder_path, "images")
 
     try:
         os.makedirs(leaves_folder_path, exist_ok=True)
@@ -93,7 +93,7 @@ def new_process_manuscript():
         image.save(os.path.join(leaves_folder_path, new_filename), "JPEG")
         print(f"Saved: {new_filename}")
 
-    images2points(os.path.join(folder_path, "leaves")) 
+    images2points(os.path.join(folder_path, "images")) 
     torch.cuda.empty_cache()
     gc.collect()
 
@@ -106,7 +106,7 @@ def get_manuscript_pages(manuscript_name):
     """Returns a sorted list of page names (without extension) for a given manuscript."""
     current_app.logger.info(f"Fetching pages for manuscript: {manuscript_name}")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    leaves_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves")
+    leaves_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "images")
 
     if not os.path.isdir(leaves_folder_path):
         current_app.logger.error(f"Leaves folder not found for manuscript: {manuscript_name}")
@@ -131,7 +131,7 @@ def get_node_features_and_graph(manuscript_name, page):
     current_app.logger.info("Getting Manuscript Page, Points and previously updated graph (if available)")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
-    IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
+    IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "images", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_inputs_unnormalized.txt")
     REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
     GRAPH_FILEPATH = os.path.join(
@@ -217,6 +217,11 @@ def make_semi_segments(manuscript_name, page):
         GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
         TEXTLINE_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_textline.txt")
         REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
+        #TODO save xml file with text regions, each having textlines with textline baselines and polygons.
+        # to create this xml file, we will need to use _dims, _inputs_unnormalized, _labels_region, _labels_textline and the textline polygons (to be returned by segmentLinesFromPointClusters function)
+        # the region labels will contain a bounding polygon, which with be a convex hull of all textline polygons within that region.
+
+
 
         os.makedirs(os.path.dirname(TEXTLINE_LABELS_FILEPATH), exist_ok=True)
         
@@ -245,7 +250,7 @@ def make_semi_segments(manuscript_name, page):
             current_app.logger.info(f"Saved region labels for {manuscript_name}/{page}.")
 
 
-        segmentLinesFromPointClusters(manuscript_name, page)
+        segmentLinesFromPointClusters(manuscript_name, page) #TODO This function need to return polygons for textlines 
         current_app.logger.info(f"Line Segmentation complete with updated graph for {manuscript_name}/{page}.")
 
         # --- MODIFIED RECOGNITION LOGIC ---
@@ -329,7 +334,7 @@ def annotate():
     manuscript_name = request.form["manuscript_name"]
     model = request.form["model"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-    leaves_folder_path = os.path.join(folder_path, "leaves")
+    leaves_folder_path = os.path.join(folder_path, "images")
 
     try:
         os.makedirs(leaves_folder_path, exist_ok=True)
@@ -341,9 +346,9 @@ def annotate():
         request.files[file].save(os.path.join(leaves_folder_path, filename))
 
     print("image2heatmap2points")
-    images2points(os.path.join(folder_path, "leaves"))
+    images2points(os.path.join(folder_path, "images"))
     print("now segmenting lines the old way")
-    segment_lines(os.path.join(folder_path, "leaves"))
+    segment_lines(os.path.join(folder_path, "images"))
     lines = recognise_characters(folder_path, model, manuscript_name)
     torch.cuda.empty_cache()
     gc.collect()
