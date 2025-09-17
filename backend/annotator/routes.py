@@ -1,5 +1,10 @@
+# routes.py
+
 import os
 import threading
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
+from datetime import datetime
 
 from flask import Blueprint, request, send_from_directory, current_app, abort, send_file
 import base64
@@ -20,6 +25,7 @@ from annotator.segmentation.segment_graph import handle_save_graph, handle_load_
 from annotator.recognition.recognition import recognise_characters,recognise_single_page_characters
 from annotator.finetune.finetune import finetune
 from natsort import natsorted
+from collections import defaultdict
 
 bp = Blueprint("main", __name__)
 
@@ -35,6 +41,102 @@ formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(messa
 logHandler.setFormatter(formatter)
 logger.addHandler(logHandler)
 
+
+def _format_points(points):
+    """Formats a list of [x, y] points into the 'x1,y1 x2,y2 ...' string format."""
+    if not points or not isinstance(points, list):
+        return ""
+    return " ".join([f"{p[0]},{p[1]}" for p in points])
+
+# routes.py
+
+def create_page_xml(manuscript_name, page_name, image_dims, textline_polygons, baselines, region_to_textlines_map, output_dir):
+    """
+    Generates and saves a PAGE-XML file from segmentation data.
+    This function now assumes it receives a correctly prepared region_to_textlines_map.
+    """
+    logger.info(f"Starting PAGE-XML generation for {manuscript_name}/{page_name}")
+    assert isinstance(image_dims, dict) and 'width' in image_dims and 'height' in image_dims, "image_dims must be a dict with 'width' and 'height'."
+    assert isinstance(textline_polygons, dict), "textline_polygons must be a dictionary."
+    assert isinstance(baselines, dict), "baselines must be a dictionary."
+    assert isinstance(region_to_textlines_map, dict), "region_to_textlines_map must be a dictionary."
+    
+    # ... (XML namespace and root element setup is unchanged) ...
+    ns = {
+        'pc': 'https://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15',
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+    }
+    ET.register_namespace('', ns['pc'])
+    ET.register_namespace('xsi', ns['xsi'])
+    pc_gts = ET.Element(f"{{{ns['pc']}}}PcGts", {
+        f"{{{ns['xsi']}}}schemaLocation": f"{ns['pc']} {ns['pc']}/pagecontent.xsd"
+    })
+    metadata = ET.SubElement(pc_gts, f"{{{ns['pc']}}}Metadata")
+    creator = ET.SubElement(metadata, f"{{{ns['pc']}}}Creator")
+    creator.text = "Sanskrit Manuscript Annotation Tool"
+    created = ET.SubElement(metadata, f"{{{ns['pc']}}}Created")
+    created.text = datetime.utcnow().isoformat() + "Z"
+    last_change = ET.SubElement(metadata, f"{{{ns['pc']}}}LastChange")
+    last_change.text = created.text
+    page_el = ET.SubElement(pc_gts, f"{{{ns['pc']}}}Page", {
+        'imageWidth': str(image_dims['width']),
+        'imageHeight': str(image_dims['height']),
+        'imageFilename': f"{page_name}.jpg"
+    })
+
+    # --- START OF MODIFICATION: REMOVED FALLBACK LOGIC ---
+    # The map is now expected to be correct when it arrives.
+    if not region_to_textlines_map:
+        logger.warning("No regions or textlines found to generate PAGE-XML content.")
+    # --- END OF MODIFICATION ---
+
+    # Create TextRegions and TextLines
+    for region_id, textline_ids in sorted(region_to_textlines_map.items()):
+        if not textline_ids:
+            logger.warning(f"Region {region_id} has no associated textlines, skipping.")
+            continue
+            
+        all_region_points = []
+        for line_id in textline_ids:
+            if line_id in textline_polygons:
+                all_region_points.extend(textline_polygons[line_id])
+
+        if not all_region_points:
+            logger.warning(f"Could not find any polygon points for textlines in region {region_id}, skipping region.")
+            continue
+
+        hull = cv2.convexHull(np.array(all_region_points, dtype=np.int32))
+        region_points_str = _format_points([p[0].tolist() for p in hull])
+
+        text_region = ET.SubElement(page_el, f"{{{ns['pc']}}}TextRegion", {'id': f'region_{region_id}', 'custom': '0'})
+        ET.SubElement(text_region, f"{{{ns['pc']}}}Coords", {'points': region_points_str})
+        
+        for line_id in sorted(textline_ids):
+            if line_id not in textline_polygons or line_id not in baselines:
+                logger.warning(f"Missing polygon or baseline for line_id {line_id} in region {region_id}, skipping.")
+                continue
+
+            textline_el = ET.SubElement(text_region, f"{{{ns['pc']}}}TextLine", {'id': f'line_{region_id}_{line_id}', 'custom': '0'})
+            line_points_str = _format_points(textline_polygons[line_id])
+            ET.SubElement(textline_el, f"{{{ns['pc']}}}Coords", {'points': line_points_str})
+            baseline_points_str = _format_points(baselines[line_id])
+            ET.SubElement(textline_el, f"{{{ns['pc']}}}Baseline", {'points': baseline_points_str})
+            text_equiv = ET.SubElement(textline_el, f"{{{ns['pc']}}}TextEquiv")
+            unicode_el = ET.SubElement(text_equiv, f"{{{ns['pc']}}}Unicode")
+            unicode_el.text = ""
+
+        region_text_equiv = ET.SubElement(text_region, f"{{{ns['pc']}}}TextEquiv")
+        region_unicode_el = ET.SubElement(region_text_equiv, f"{{{ns['pc']}}}Unicode")
+        region_unicode_el.text = ""
+
+    # ... (XML saving logic is unchanged) ...
+    xml_string = ET.tostring(pc_gts, 'utf-8')
+    reparsed = minidom.parseString(xml_string)
+    pretty_xml = reparsed.toprettyxml(indent="  ", encoding="UTF-8")
+    output_filepath = os.path.join(output_dir, f"{page_name}.xml")
+    with open(output_filepath, "wb") as f:
+        f.write(pretty_xml)
+    logger.info(f"Successfully saved PAGE-XML to {output_filepath}")
 
 @bp.route("/", methods=["GET"])
 def hello():
@@ -54,7 +156,7 @@ def new_process_manuscript():
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     manuscript_name = request.form["manuscript_name"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-    leaves_folder_path = os.path.join(folder_path, "images")
+    leaves_folder_path = os.path.join(folder_path, "leaves")
 
     try:
         os.makedirs(leaves_folder_path, exist_ok=True)
@@ -93,7 +195,7 @@ def new_process_manuscript():
         image.save(os.path.join(leaves_folder_path, new_filename), "JPEG")
         print(f"Saved: {new_filename}")
 
-    images2points(os.path.join(folder_path, "images")) 
+    images2points(os.path.join(folder_path, "leaves")) 
     torch.cuda.empty_cache()
     gc.collect()
 
@@ -106,7 +208,7 @@ def get_manuscript_pages(manuscript_name):
     """Returns a sorted list of page names (without extension) for a given manuscript."""
     current_app.logger.info(f"Fetching pages for manuscript: {manuscript_name}")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    leaves_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "images")
+    leaves_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves")
 
     if not os.path.isdir(leaves_folder_path):
         current_app.logger.error(f"Leaves folder not found for manuscript: {manuscript_name}")
@@ -131,7 +233,7 @@ def get_node_features_and_graph(manuscript_name, page):
     current_app.logger.info("Getting Manuscript Page, Points and previously updated graph (if available)")
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
-    IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "images", f"{page}.jpg")
+    IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_inputs_unnormalized.txt")
     REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
     GRAPH_FILEPATH = os.path.join(
@@ -217,13 +319,11 @@ def make_semi_segments(manuscript_name, page):
         GNN_DATASET_PATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "gnn-dataset")
         TEXTLINE_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_textline.txt")
         REGION_LABELS_FILEPATH = os.path.join(GNN_DATASET_PATH, f"{page}_labels_region.txt")
-        #TODO save xml file with text regions, each having textlines with textline baselines and polygons.
-        # to create this xml file, we will need to use _dims, _inputs_unnormalized, _labels_region, _labels_textline and the textline polygons (to be returned by segmentLinesFromPointClusters function)
-        # the region labels will contain a bounding polygon, which with be a convex hull of all textline polygons within that region.
-
-
+        IMAGE_FILEPATH = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "leaves", f"{page}.jpg")
+        XML_OUTPUT_DIR = os.path.join(MANUSCRIPTS_PATH, manuscript_name, "page-xml")
 
         os.makedirs(os.path.dirname(TEXTLINE_LABELS_FILEPATH), exist_ok=True)
+        os.makedirs(XML_OUTPUT_DIR, exist_ok=True)
         
         GRAPH_FILEPATH = os.path.join(
             MANUSCRIPTS_PATH, manuscript_name, "frontend-graph-data"
@@ -232,31 +332,83 @@ def make_semi_segments(manuscript_name, page):
         request_data = request.json
 
         if 'graph' in request_data:
+            # ... (graph saving logic is unchanged) ...
             graph_data = request_data['graph']
-            current_app.logger.info(f"Saving updated Graph for: {manuscript_name}/{page}.")
+            logger.info(f"Saving updated Graph for: {manuscript_name}/{page}.")
             handle_save_graph(graph_data, manuscript_name, page, output_dir=GRAPH_FILEPATH, update=True)
-            
-            current_app.logger.info(f"Generating Labels from updated Graph for: {manuscript_name}/{page}.")
+            logger.info(f"Generating Labels from updated Graph for: {manuscript_name}/{page}.")
             labels = generate_labels_from_graph(graph_data)
-            
             with open(TEXTLINE_LABELS_FILEPATH, "w") as f:
                 f.write("\n".join(map(str, labels)))
         
-        # --- Save Region Labels if provided ---
-        if 'regionLabels' in request_data:
-            region_labels = request_data['regionLabels']
+        if 'regionLabels' in request_data and request_data['regionLabels']:
+            # ... (region label saving logic is unchanged) ...
+            labels_data = request_data['regionLabels']
             with open(REGION_LABELS_FILEPATH, "w") as f:
-                f.write("\n".join(map(str, region_labels)))
-            current_app.logger.info(f"Saved region labels for {manuscript_name}/{page}.")
+                f.write("\n".join(map(str, labels_data)))
+            logger.info(f"Saved region labels for {manuscript_name}/{page}.")
 
+        textline_polygons, baselines = segmentLinesFromPointClusters(manuscript_name, page)
+        logger.info(f"Line Segmentation complete for {manuscript_name}/{page}.")
+        assert textline_polygons is not None, "segmentLinesFromPointClusters must return textline polygons."
+        assert baselines is not None, "segmentLinesFromPointClusters must return baselines."
 
-        segmentLinesFromPointClusters(manuscript_name, page) #TODO This function need to return polygons for textlines 
-        current_app.logger.info(f"Line Segmentation complete with updated graph for {manuscript_name}/{page}.")
+        # --- PAGE-XML Generation ---
+        logger.info("Proceeding with PAGE-XML generation.")
+        try:
+            image = cv2.imread(IMAGE_FILEPATH)
+            if image is None: raise FileNotFoundError(f"Image not found at {IMAGE_FILEPATH}")
+            h, w, _ = image.shape
+            image_dims = {'width': w, 'height': h}
 
-        # --- MODIFIED RECOGNITION LOGIC ---
-        recognized_line_data = {}  # Default to an empty dictionary
+            # --- START OF REVISED LOGIC ---
+            region_to_textlines_map = defaultdict(list)
+            textline_to_region_map = {}
+            
+            # Build map only if region labels exist and are meaningful
+            if os.path.exists(REGION_LABELS_FILEPATH) and os.path.exists(TEXTLINE_LABELS_FILEPATH):
+                with open(REGION_LABELS_FILEPATH, "r") as f:
+                    region_labels = [int(line.strip()) for line in f if line.strip()]
+                with open(TEXTLINE_LABELS_FILEPATH, "r") as f:
+                    textline_labels = [int(line.strip()) for line in f if line.strip()]
+
+                # Check if there are any actual region labels other than -1
+                has_valid_regions = any(r != -1 for r in region_labels)
+
+                if has_valid_regions and len(region_labels) == len(textline_labels):
+                    logger.info("Mapping textlines to provided regions.")
+                    for i, tl_id in enumerate(textline_labels):
+                        if tl_id != -1 and tl_id not in textline_to_region_map:
+                            region_id = region_labels[i]
+                            if region_id != -1:
+                                textline_to_region_map[tl_id] = region_id
+                    
+                    for tl_id, r_id in textline_to_region_map.items():
+                        region_to_textlines_map[r_id].append(tl_id)
+
+            # If the map is still empty after the above logic, it means no regions were defined.
+            # Create a single default region containing all detected textlines.
+            if not region_to_textlines_map and textline_polygons:
+                logger.warning("No valid region labels found. Grouping all textlines into a single default region.")
+                all_line_ids = sorted(list(textline_polygons.keys()))
+                region_to_textlines_map[0] = all_line_ids
+            # --- END OF REVISED LOGIC ---
+
+            create_page_xml(
+                manuscript_name=manuscript_name,
+                page_name=page,
+                image_dims=image_dims,
+                textline_polygons=textline_polygons,
+                baselines=baselines,
+                region_to_textlines_map=dict(region_to_textlines_map),
+                output_dir=XML_OUTPUT_DIR
+            )
+        except Exception as xml_e:
+            logger.error(f"Error during PAGE-XML generation: {str(xml_e)}", exc_info=True)
+        
+        # ... (Text recognition and response logic is unchanged) ...
+        recognized_line_data = {}
         model_name_from_request = request_data.get("modelName")
-
         if model_name_from_request:
             current_app.logger.info(f"Starting text recognition for {manuscript_name}/{page} with model {model_name_from_request}.")
             manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
@@ -266,20 +418,17 @@ def make_semi_segments(manuscript_name, page):
             current_app.logger.info(f"Text recognition finished for {manuscript_name}/{page}.")
         else:
             current_app.logger.info("No model name provided. Skipping text recognition step.")
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if torch.cuda.is_available(): torch.cuda.empty_cache()
         gc.collect()
-
         return Response(json.dumps({
             "message": f"Updated Graph and Segmentation for: {manuscript_name} page {page}",
             "lines": recognized_line_data
         }), status=200, mimetype='application/json')
 
     except Exception as e:
-        current_app.logger.error(f"Error in POST /semi-segment: {str(e)}")
+        current_app.logger.error(f"Error in POST /semi-segment: {str(e)}", exc_info=True)
         return Response(json.dumps({"error": str(e)}), status=500, mimetype='application/json')
-
+    
 
 # GET LINE IMAGES
 @bp.route("/line-images/<manuscript_name>/<page>/<line>", methods=["GET"])
@@ -334,7 +483,7 @@ def annotate():
     manuscript_name = request.form["manuscript_name"]
     model = request.form["model"]
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
-    leaves_folder_path = os.path.join(folder_path, "images")
+    leaves_folder_path = os.path.join(folder_path, "leaves")
 
     try:
         os.makedirs(leaves_folder_path, exist_ok=True)
@@ -346,9 +495,9 @@ def annotate():
         request.files[file].save(os.path.join(leaves_folder_path, filename))
 
     print("image2heatmap2points")
-    images2points(os.path.join(folder_path, "images"))
+    images2points(os.path.join(folder_path, "leaves"))
     print("now segmenting lines the old way")
-    segment_lines(os.path.join(folder_path, "images"))
+    segment_lines(os.path.join(folder_path, "leaves"))
     lines = recognise_characters(folder_path, model, manuscript_name)
     torch.cuda.empty_cache()
     gc.collect()
