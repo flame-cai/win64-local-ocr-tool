@@ -73,7 +73,8 @@ def create_debug_collage(original_uncropped, padded_crop, cleaned_blob, componen
     FONT_COLOR = (255, 255, 255)
 
     # Prepare heatmap-related visualizations
-    _, bin_heat_crop = cv2.threshold(heatmap_crop, config['BINARIZE_THRESHOLD'], 255, cv2.THRESH_BINARY)
+    binarize_t = int(config['BINARIZE_THRESHOLD'] * 255)
+    _, bin_heat_crop = cv2.threshold(heatmap_crop, binarize_t, 255, cv2.THRESH_BINARY)
     h_prof_heat = np.sum(bin_heat_crop, axis=1) / 255
     v_prof_heat = np.sum(bin_heat_crop, axis=0) / 255
     v_prof_heat_viz = visualize_projection_profile(v_prof_heat, bin_heat_crop.shape, 'vertical', color=(0, 0, 255))
@@ -152,7 +153,8 @@ def analyze_and_clean_blob(blob, line_type, config):
 
 def gen_bounding_boxes(det, binarize_threshold):
     img = np.uint8(det)
-    _, img1 = cv2.threshold(img, binarize_threshold, 255, cv2.THRESH_BINARY)
+    binarize_t = int(binarize_threshold * 255)
+    _, img1 = cv2.threshold(img, binarize_t, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(img1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     return [cv2.boundingRect(c) for c in contours]
 
@@ -380,8 +382,9 @@ def find_closest_points_between_contours(c1, c2):
     return closest_pts, min_dist
 
 def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, debug_mode=True):
+    # TODO this function needs to return textline polygons as well.
     BASE_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
-    IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "leaves", f"{page}.jpg")
+    IMAGE_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "images", f"{page}.jpg")
     HEATMAP_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "heatmaps", f"{page}.jpg")
     POINTS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "gnn-dataset", f"{page}_inputs_unnormalized.txt")
     LABELS_FILEPATH = os.path.join(BASE_PATH, manuscript_name, "gnn-dataset", f"{page}_labels_textline.txt")
@@ -414,7 +417,7 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
 
     # --- START OF CHANGE: Updated CONFIG values ---
     CONFIG = {
-        'BINARIZE_THRESHOLD': 130, 
+        'BINARIZE_THRESHOLD': 0.5098, #between 0 and 1
         # 'LINE_GEN_PAD_V': 30, 
         # 'LINE_GEN_PAD_H': 30,
         'CC_SIZE_THRESHOLD_RATIO': 0.4, 
@@ -438,7 +441,6 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
 
     line_bounding_boxes_data = get_bboxes_for_lines(processing_image, unique_labels, labeled_bboxes,
         debug_mode=(upscale_heatmap and debug_mode), debug_info=debug_info)
-    # TODO, do not use this line_images_data. In the below code, when saving polygons, crop the polygons from the original image, then enclose them in a bbox, and save that bbox as the line image.
 
     
     poly_viz_page_img = image.copy()
@@ -528,7 +530,6 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
             x, y, w, h = cv2.boundingRect(polygon) 
             cropped_line_image = processing_image[y:y+h, x:x+w]
             new_img = np.ones(cropped_line_image.shape, dtype=np.uint8) * CONFIG['PAGE_MEDIAN_COLOR']
-            #TODO copy and paste only the contents of the 'polygon' from image.copy into new_img, with the right positioning.
             mask_polygon = np.zeros(cropped_line_image.shape[:2], dtype=np.uint8)
             polygon_shifted = polygon - [x, y]
             cv2.drawContours(mask_polygon, [polygon_shifted], -1, 255, -1)
