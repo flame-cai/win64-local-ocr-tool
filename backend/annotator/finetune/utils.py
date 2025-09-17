@@ -249,8 +249,27 @@ class CTCLabelConverter(object):
             length: length of each text. [batch_size]
         """
         length = [len(s) for s in text]
-        text = ''.join(text)
-        text = [self.dict[char] for char in text]
+        _text = ''.join(text)
+
+        # TODO if we get keyerror for 'ऽ' and 'ॐ', add S and OM to character list.
+        text = []
+        for char in _text:
+            try:
+                text.append(self.dict[char])
+            except KeyError:
+                print('WARNING: character not in dictionary: {}'.format(char))
+                if char == 'ऽ':
+                    text.append(self.dict['S'])
+                    print(self.dict['S'])
+                elif char == '॥':
+                    text.append(self.dict['|'])
+                    print(self.dict['|'])
+                else:
+                    text.append(self.dict[' ']) # map to space
+
+
+        # text = [self.dict[char] for char in text]
+
 
         return (torch.IntTensor(text), torch.IntTensor(length))
 
