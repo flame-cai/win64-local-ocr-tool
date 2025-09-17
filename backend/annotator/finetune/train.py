@@ -9,6 +9,7 @@ import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data
 from torch.cuda.amp import autocast, GradScaler
+
 import numpy as np
 
 from annotator.finetune.utils import CTCLabelConverter, AttnLabelConverter, Averager
@@ -35,7 +36,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         print('Filtering the images containing characters which are not in opt.character')
         print('Filtering the images whose label is longer than opt.batch_max_length')
 
-    print("okay, we now finetuning in train(opt)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("okay,WE TRAINING NOW")
     print(opt)
     opt.select_data = opt.select_data.split('-')
     opt.batch_ratio = opt.batch_ratio.split('-')
@@ -52,7 +53,6 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     log.write(valid_dataset_log)
     print('-' * 80)
     log.write('-' * 80 + '\n')
-    log.close()
     
     """ model configuration """
     if 'CTC' in opt.Prediction:
@@ -73,7 +73,8 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         if opt.new_prediction:
             model.Prediction = nn.Linear(model.SequenceModeling_output, len(pretrained_dict['module.Prediction.weight']))  
         
-        model = torch.nn.DataParallel(model).to(device) 
+        model = torch.nn.DataParallel(model).to(device)
+        log.write(f'loading pretrained model from {opt.saved_model}\n') 
         print(f'loading pretrained model from {opt.saved_model}')
         if opt.FT:
             model.load_state_dict(pretrained_dict, strict=False)
@@ -108,7 +109,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     # print("Model:")
     # print(model)
     count_parameters(model)
-    
+    log.close()
     """ setup loss """
     if 'CTC' in opt.Prediction:
         criterion = torch.nn.CTCLoss(zero_infinity=True).to(device)
@@ -171,7 +172,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     best_norm_ED = -1
     i = start_iter
 
-    scaler = GradScaler()
+    scaler = torch.amp.GradScaler()
     t1= time.time()
         
     while(True):
@@ -208,6 +209,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
             text, length = converter.encode(labels, batch_max_length=opt.batch_max_length)
             batch_size = image.size(0)
             if 'CTC' in opt.Prediction:
+                print("IN CTC LOSS")
                 preds = model(image, text).log_softmax(2)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 preds = preds.permute(1, 0, 2)
@@ -225,10 +227,9 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
 
         # validation part
         if (i % opt.valInterval == 0) and (i!=0):
-            print('training time: ', time.time()-t1)
+            # print('training time: ', time.time()-t1)
             t1=time.time()
             elapsed_time = time.time() - start_time
-            # for log
             with open(f'./saved_models/{opt.model_name}/log_train.txt', 'a', encoding="utf8") as log:
                 model.eval()
                 with torch.no_grad():
@@ -261,8 +262,8 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
                 predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
                 
                 #show_number = min(show_number, len(labels))
-                print("printing labels")
-                print(str(labels))
+                # print("printing labels")
+                # print(str(labels))
                 if len(labels)<show_number:
                     start=0
                     show_number=1
@@ -279,10 +280,12 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
                 log.write(predicted_result_log + '\n')
                 print('validation time: ', time.time()-t1)
                 t1=time.time()
-        # save model per 1e+4 iter.
-        if (i + 1) % 1e+4 == 0:
-            torch.save(
-                model.state_dict(), f'instance/models/recognition/{opt.model_name}/iter_{i+1}.pth')
+
+                
+        # # save model per 1e+4 iter.
+        # if (i + 1) % 1e+4 == 0:
+        #     torch.save(
+        #         model.state_dict(), f'instance/models/recognition/{opt.model_name}/iter_{i+1}.pth')
 
         if i == opt.num_iter:
             print('end the training')
