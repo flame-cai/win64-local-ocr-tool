@@ -12,7 +12,7 @@ valInterval: 5
 saved_model: '' #'saved_models/en_filtered/iter_300000.pth'
 FT: False
 optim: False # default is Adadelta
-lr: 0.001
+lr: 1
 beta1: 0.9
 rho: 0.95
 eps: 0.00000001

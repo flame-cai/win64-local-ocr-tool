@@ -507,19 +507,45 @@ const handleSvgMouseMove = (event) => {
   const mouseY = event.clientY - top
 
   if (regionLabelingModeActive.value) {
-    let foundNode = false
     let newHoveredTextlineId = null
 
+    // 1. Check for node hover first (more precise)
     for (let i = 0; i < workingGraph.nodes.length; i++) {
       const node = workingGraph.nodes[i]
       if (Math.hypot(mouseX - scaleX(node.x), mouseY - scaleY(node.y)) < NODE_HOVER_RADIUS) {
         newHoveredTextlineId = nodeToTextlineMap.value[i]
-        foundNode = true
-        break
+        break // Exit loop once found
       }
     }
+
+    // 2. If no node hovered, check for edge hover
+    if (newHoveredTextlineId === null) {
+      for (const edge of workingGraph.edges) {
+        const n1 = workingGraph.nodes[edge.source]
+        const n2 = workingGraph.nodes[edge.target]
+        if (
+          n1 &&
+          n2 &&
+          distanceToLineSegment(
+            mouseX,
+            mouseY,
+            scaleX(n1.x),
+            scaleY(n1.y),
+            scaleX(n2.x),
+            scaleY(n2.y)
+          ) < EDGE_HOVER_THRESHOLD
+        ) {
+          // An edge connects two nodes of the same textline, so we can use either.
+          newHoveredTextlineId = nodeToTextlineMap.value[edge.source]
+          break // Exit loop once found
+        }
+      }
+    }
+
+    // 3. Update the hovered textline ID
     hoveredTextlineId.value = newHoveredTextlineId
 
+    // 4. Apply label if key is pressed
     if (hoveredTextlineId.value !== null && isEKeyPressed.value) {
       labelTextline()
     }
@@ -953,11 +979,27 @@ watch(editModeActive, (isEditing) => {
     hoveredNodesForMST.clear()
   }
 })
+
 watch(regionLabelingModeActive, (isLabeling) => {
   if (isLabeling) {
+    console.log('Entering Region Labeling mode.')
     editModeActive.value = false
     resetSelection()
-    currentLabelIndex.value = 0 // Reset to the first label when entering mode
+
+    // Ensure the next label index is unique by checking existing labels
+    const existingLabels = Object.values(regionLabels)
+    if (existingLabels.length > 0) {
+      // Find the maximum label value currently in use and add 1
+      const maxLabel = Math.max(...existingLabels)
+      currentLabelIndex.value = maxLabel + 1
+      console.log(`Resuming labeling. Next available label index: ${currentLabelIndex.value}`)
+    } else {
+      // No labels exist yet, start from 0
+      currentLabelIndex.value = 0
+      console.log('No existing labels. Starting new labeling at index: 0')
+    }
+  } else {
+    console.log('Exiting Region Labeling mode.')
   }
   hoveredTextlineId.value = null
 })
@@ -1151,3 +1193,5 @@ button:disabled {
   background-color: #7a7a4a;
 }
 </style>
+
+

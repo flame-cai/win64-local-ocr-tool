@@ -9,7 +9,6 @@ import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data
 from torch.cuda.amp import autocast, GradScaler
-
 import numpy as np
 
 from annotator.finetune.utils import CTCLabelConverter, AttnLabelConverter, Averager
@@ -26,7 +25,7 @@ def count_parameters(model):
         param = parameter.numel()
         #table.add_row([name, param])
         total_params+=param
-        # print(name, param)
+        print(name, param)
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
@@ -36,8 +35,6 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         print('Filtering the images containing characters which are not in opt.character')
         print('Filtering the images whose label is longer than opt.batch_max_length')
 
-    print("okay,WE TRAINING NOW")
-    print(opt)
     opt.select_data = opt.select_data.split('-')
     opt.batch_ratio = opt.batch_ratio.split('-')
     train_dataset = Batch_Balanced_Dataset(opt)
@@ -53,6 +50,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     log.write(valid_dataset_log)
     print('-' * 80)
     log.write('-' * 80 + '\n')
+    log.close()
     
     """ model configuration """
     if 'CTC' in opt.Prediction:
@@ -64,17 +62,16 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     if opt.rgb:
         opt.input_channel = 3
     model = Model(opt)
-    # print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
-    #       opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
-    #       opt.SequenceModeling, opt.Prediction)
+    print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
+          opt.hidden_size, opt.num_class, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
+          opt.SequenceModeling, opt.Prediction)
 
     if opt.saved_model != '':
         pretrained_dict = torch.load(opt.saved_model)
         if opt.new_prediction:
             model.Prediction = nn.Linear(model.SequenceModeling_output, len(pretrained_dict['module.Prediction.weight']))  
         
-        model = torch.nn.DataParallel(model).to(device)
-        log.write(f'loading pretrained model from {opt.saved_model}\n') 
+        model = torch.nn.DataParallel(model).to(device) 
         print(f'loading pretrained model from {opt.saved_model}')
         if opt.FT:
             model.load_state_dict(pretrained_dict, strict=False)
@@ -106,10 +103,10 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         model = torch.nn.DataParallel(model).to(device)
     
     model.train() 
-    # print("Model:")
-    # print(model)
+    print("Model:")
+    print(model)
     count_parameters(model)
-    log.close()
+    
     """ setup loss """
     if 'CTC' in opt.Prediction:
         criterion = torch.nn.CTCLoss(zero_infinity=True).to(device)
@@ -155,7 +152,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         for k, v in args.items():
             opt_log += f'{str(k)}: {str(v)}\n'
         opt_log += '---------------------------------------\n'
-        # print(opt_log)
+        print(opt_log)
         opt_file.write(opt_log)
 
     """ start training """
@@ -172,7 +169,7 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
     best_norm_ED = -1
     i = start_iter
 
-    scaler = torch.amp.GradScaler()
+    scaler = GradScaler()
     t1= time.time()
         
     while(True):
@@ -182,7 +179,6 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
         if amp:
             with autocast():
                 image_tensors, labels = train_dataset.get_batch()
-                
                 image = image_tensors.to(device)
                 text, length = converter.encode(labels, batch_max_length=opt.batch_max_length)
                 batch_size = image.size(0)
@@ -209,7 +205,6 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
             text, length = converter.encode(labels, batch_max_length=opt.batch_max_length)
             batch_size = image.size(0)
             if 'CTC' in opt.Prediction:
-                print("IN CTC LOSS")
                 preds = model(image, text).log_softmax(2)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 preds = preds.permute(1, 0, 2)
@@ -227,9 +222,10 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
 
         # validation part
         if (i % opt.valInterval == 0) and (i!=0):
-            # print('training time: ', time.time()-t1)
+            print('training time: ', time.time()-t1)
             t1=time.time()
             elapsed_time = time.time() - start_time
+            # for log
             with open(f'./saved_models/{opt.model_name}/log_train.txt', 'a', encoding="utf8") as log:
                 model.eval()
                 with torch.no_grad():
@@ -280,12 +276,10 @@ def train(opt, manuscript_name, show_number = 2, amp=False ):
                 log.write(predicted_result_log + '\n')
                 print('validation time: ', time.time()-t1)
                 t1=time.time()
-
-                
-        # # save model per 1e+4 iter.
-        # if (i + 1) % 1e+4 == 0:
-        #     torch.save(
-        #         model.state_dict(), f'instance/models/recognition/{opt.model_name}/iter_{i+1}.pth')
+        # save model per 1e+4 iter.
+        if (i + 1) % 1e+4 == 0:
+            torch.save(
+                model.state_dict(), f'instance/models/recognition/{opt.model_name}/iter_{i+1}.pth')
 
         if i == opt.num_iter:
             print('end the training')
