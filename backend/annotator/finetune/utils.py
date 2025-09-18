@@ -257,7 +257,7 @@ class CTCLabelConverter(object):
             try:
                 text.append(self.dict[char])
             except KeyError:
-                print('WARNING: character not in dictionary: {}'.format(char))
+                print(f'WARNING: character not in dictionary: {char}')
                 if char == 'ऽ':
                     text.append(self.dict['S'])
                     print(self.dict['S'])

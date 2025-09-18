@@ -11,22 +11,25 @@ import json
 import matplotlib.pyplot as plt
 from annotator.segmentation.utils import loadImage
 from flask import current_app
+from collections import defaultdict
+from scipy.spatial.distance import pdist, squareform
+from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.sparse import csr_matrix
+
 
 
 # segment_from_point_clusters.py (Add this helper function)
 
-from collections import defaultdict
-
 def _generate_baselines_from_textline_points(points_filepath, textline_labels_filepath):
     """
-    Generates baseline polylines by grouping points using their textline labels.
+    Generates baseline polylines by connecting points using a Minimum Spanning Tree (MST).
 
-    This is the precise fix: It assumes the points themselves trace the path of the
-    baseline and uses the textline label file to group them correctly. This removes
-    the dependency on the non-existent '_labels_baseline.txt' file.
+    This improved method correctly handles baselines of any orientation (horizontal,
+    vertical, curved, etc.) by first finding the MST of the points for each textline
+    and then extracting the longest path within that tree.
 
     Returns:
-        A dictionary mapping each textline label to its baseline polyline.
+        A dictionary mapping each textline label to its ordered baseline polyline.
     """
     baselines = {}
     if not all(os.path.exists(p) for p in [points_filepath, textline_labels_filepath]):
@@ -34,31 +37,104 @@ def _generate_baselines_from_textline_points(points_filepath, textline_labels_fi
         return baselines
 
     try:
-        all_points = np.loadtxt(points_filepath, dtype=int)
+        all_points = np.loadtxt(points_filepath, dtype=int)*2 # Scale back to original size
         with open(textline_labels_filepath, "r") as f:
             textline_labels = [int(line.strip()) for line in f if line.strip()]
-        
+
         assert len(all_points) == len(textline_labels), \
             "Point and textline label files must have the same number of entries."
 
         points_per_textline = defaultdict(list)
         for point, t_label in zip(all_points, textline_labels):
             if t_label > -1:
-                points_per_textline[t_label].append(point.tolist())
+                points_per_textline[t_label].append(point)
 
         for t_label, points in points_per_textline.items():
-            if points:
-                # Sort points by x-coordinate to form a proper left-to-right polyline
-                sorted_points = sorted(points, key=lambda p: p[0])
-                baselines[t_label] = sorted_points
-        
-        current_app.logger.info(f"Successfully generated {len(baselines)} baselines from textline points.")
+            if len(points) < 2:
+                if len(points) == 1:
+                    baselines[t_label] = points
+                continue
+            
+            points_arr = np.array(points)
+
+            # 1. Build a distance matrix for all points in the line
+            dist_matrix = squareform(pdist(points_arr, 'euclidean'))
+
+            # 2. Compute the Minimum Spanning Tree
+            mst = minimum_spanning_tree(csr_matrix(dist_matrix))
+
+            # 3. Convert MST to an adjacency list for easy traversal
+            adj_list = defaultdict(list)
+            rows, cols = mst.nonzero()
+            for r, c in zip(rows, cols):
+                adj_list[r].append(c)
+                adj_list[c].append(r)
+
+            # 4. Find the longest path in the tree (the baseline)
+            # Find a leaf node (degree 1) to start the search
+            start_node = -1
+            for i in range(len(points)):
+                if len(adj_list[i]) == 1:
+                    start_node = i
+                    break
+            if start_node == -1: # Handle cycles or single-point cases
+                 start_node = 0
+
+            # First DFS to find the farthest node from our starting leaf
+            farthest_node, _ = _dfs(start_node, adj_list, len(points))
+            
+            # Second DFS from that farthest node to find the actual longest path
+            end_node, parents = _dfs(farthest_node, adj_list, len(points))
+
+            # 5. Reconstruct the path from the parent pointers
+            path = []
+            curr = end_node
+            while curr is not None:
+                path.append(points[curr])
+                curr = parents[curr]
+            
+            # The path is reconstructed backwards, so reverse it
+            baselines[t_label] = path[::-1]
+
+        current_app.logger.info(f"Successfully generated {len(baselines)} baselines using MST.")
 
     except Exception as e:
-        current_app.logger.error(f"Error generating baselines from textline points: {e}", exc_info=True)
+        current_app.logger.error(f"Error generating baselines with MST: {e}", exc_info=True)
         return {}
 
     return baselines
+
+
+def _dfs(start_node, adj_list, num_nodes):
+    """Helper function to perform DFS and find the farthest node and parent path."""
+    distances = [-1] * num_nodes
+    parents = {node: None for node in range(num_nodes)}
+    stack = [(start_node, 0)]  # (node, distance)
+
+    max_dist = -1
+    farthest_node = start_node
+
+    visited = set()
+
+    while stack:
+        node, dist = stack.pop()
+        
+        if node in visited:
+            continue
+        visited.add(node)
+        
+        distances[node] = dist
+        if dist > max_dist:
+            max_dist = dist
+            farthest_node = node
+        
+        for neighbor in adj_list[node]:
+            if neighbor not in visited:
+                parents[neighbor] = node
+                stack.append((neighbor, dist + 1))
+    
+    return farthest_node, parents
+
 
 def resize_with_padding(image, target_size, background_color=(0, 0, 0)):
     """
