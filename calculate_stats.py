@@ -82,7 +82,7 @@ def load_page_data(page_id: str, base_path: str) -> (dict, np.ndarray, np.ndarra
         
         points = np.loadtxt(inputs_path) # [x, y, s]
         labels = np.loadtxt(labels_path, dtype=int)
-
+*2
         assert points.shape[0] == labels.shape[0], \
             f"Page {page_id}: Mismatch between number of points ({points.shape[0]}) and labels ({labels.shape[0]})"
         assert points.shape[1] == 3, \
