@@ -265,7 +265,8 @@ class CTCLabelConverter(object):
                     text.append(self.dict['|'])
                     print(self.dict['|'])
                 else:
-                    text.append(self.dict[' ']) # map to space
+                    # append the ZWNJ character if char not found
+                    text.append(self.dict['\u200c'])
 
 
         # text = [self.dict[char] for char in text]

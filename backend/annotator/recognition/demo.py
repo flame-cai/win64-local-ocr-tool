@@ -76,6 +76,9 @@ def recognise_lines(
     else:
         converter = AttnLabelConverter(character)
     num_class = len(converter.character)
+    print("NUMBER OF CHARACTERS:", num_class)
+    print("NUMBER OF CHARACTERS:", num_class)
+    print("NUMBER OF CHARACTERS:", num_class)
 
     # Set input channel for RGB images
     input_channel = 3 if rgb else input_channel
