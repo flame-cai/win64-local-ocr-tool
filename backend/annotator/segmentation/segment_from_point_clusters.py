@@ -37,7 +37,8 @@ def _generate_baselines_from_textline_points(points_filepath, textline_labels_fi
         return baselines
 
     try:
-        all_points = np.loadtxt(points_filepath, dtype=int)*2 # Scale back to original size
+        # all_points = np.loadtxt(points_filepath, dtype=int)*2 # Scale back to original size
+        all_points = np.loadtxt(points_filepath, dtype=float).astype(int)*2
         with open(textline_labels_filepath, "r") as f:
             textline_labels = [int(line.strip()) for line in f if line.strip()]
 
@@ -285,7 +286,8 @@ def gen_bounding_boxes(det, binarize_threshold):
     return [cv2.boundingRect(c) for c in contours]
 
 def load_node_features_and_labels(points_file, labels_file):
-    points = np.loadtxt(points_file, dtype=int)
+    # points = np.loadtxt(points_file, dtype=int)
+    points = np.loadtxt(points_file, dtype=float).astype(int)
     with open(labels_file, "r") as f: labels = [line.strip() for line in f]
     features, filtered_labels = [], []
     for point, label in zip(points, labels):
