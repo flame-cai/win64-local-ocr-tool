@@ -70,6 +70,10 @@ npm install
 npm run dev
 ```
 
+Special thanks to [Lalchand Library](https://dav.splrarebooks.com/) for making manuscript photocopies available online for research purposes.
+
+
+
 ## TODO
 - [ ] Layout Analysis
     - [ ] better UX - better zoom in.
