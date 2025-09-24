@@ -9,10 +9,10 @@ This tool enables segmenting text-line-images from pages with diverse layouts. I
 
 To recognise text content from the segmented text-line-images, we use a pre-trained text recognition model for the Devanāgarī script. The tools enables fine-tuning of the pre-trained model on specific manuscripts, which results in the model's predictions getting progressively better with more annotated data, thus also making the subsequent annotation easier - similar to active learning.
 
-Contact kartik.niszoig at gmail for questions, comments and reporting bugs..
-
 
 ![Demo](demo.gif)
+Image [Source](https://dav.splrarebooks.com/)
+
 
 **Step 1**: Automatically Segment Text Line Images from Document, with the ability to manually ADD or DELETE edges for tricky edge-case page layouts. **Step 2**: Recognize the text content from the Text Line Images, make corrections, and fine tune the IMG2TEXT model
 
@@ -71,10 +71,6 @@ npm run dev
 ```
 
 ## TODO
-
-
-
-
 - [ ] Layout Analysis
     - [ ] better UX - better zoom in.
     - [ ] improve the graph construction algorithm
@@ -90,7 +86,7 @@ npm run dev
 - [ ] Recognition Model 
     - [ ] Fix bugs in fine tuning
     - [ ] after clicking fine tuning, we should go to next page, not home page
-    - [ ] Better iterative "active learning" UX
+
 
 
 - [ ] Post-Correction
