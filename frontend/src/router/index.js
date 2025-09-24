@@ -1,3 +1,4 @@
+import Dashboard from '@/views/Dashboard.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
@@ -6,7 +7,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'welcome',
-      component: () => import('../views/LandingPage.vue'),
+      component: () => import('../views/Home.vue'),
     },
     {
       path: '/annotation',
@@ -78,6 +79,11 @@ const router = createRouter({
       name: 'uploaded-manuscripts',
       component: () => import('../views/UploadedManuscriptsView.vue'),
     },
+    {
+      path:"/dashboard",
+      name: 'dashboard',
+      component: () => import('../views/Dashboard.vue'),
+    }
   ],
 })
 

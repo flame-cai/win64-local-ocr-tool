@@ -6,185 +6,194 @@ import { useAnnotationStore } from '@/stores/annotationStore'
 
 const annotationStore = useAnnotationStore()
 const uploadForm = ref()
-const manuscriptName = ref('') // Initialize to prevent undefined issues, bind with v-model
+const manuscriptName = ref('')
 const models = ref([])
-const modelSelected = ref('') // Initialize, bind with v-model
+const modelSelected = ref('')
 
 const router = useRouter()
 
 fetch(import.meta.env.VITE_BACKEND_URL + '/models')
-  .then((response) => response.json())
-  .then((object) => {
-    models.value = object
+  .then((res) => res.json())
+  .then((data) => {
+    models.value = data
   })
 
 onMounted(() => {
   uploadForm.value = new Dropzone('#upload-form', {
-    url: import.meta.env.VITE_BACKEND_URL + '/new-process-manuscript', // Set URL here for Dropzone
+    url: import.meta.env.VITE_BACKEND_URL + '/new-process-manuscript',
     uploadMultiple: true,
-    autoProcessQueue: false, // We'll call processQueue manually
+    autoProcessQueue: false,
     parallelUploads: Infinity,
-    // It's good practice to define acceptedFiles if you expect specific image types
-    // acceptedFiles: 'image/jpeg,image/png,image/gif', // Example
   })
 
-  uploadForm.value.on('completemultiple', function (files) {
-    // This event fires after all files in a batch are processed (uploaded or failed).
-    // We should ideally check file.status === Dropzone.SUCCESS for each file,
-    // but for simplicity, we'll assume 'files' here are the ones intended for processing if the overall batch didn't error out.
-    // If Dropzone's 'successmultiple' event is available and preferred, that could be used too.
-    
+  uploadForm.value.on('completemultiple', (files) => {
+    const currentManuscriptName = manuscriptName.value
+    const currentModel = modelSelected.value
 
-    const currentManuscriptNameFromForm = manuscriptName.value
-    const currentModelSelectedFromForm = modelSelected.value
-    console.log('Page A: currentModelSelectedFromForm is:', currentModelSelectedFromForm); // DEBUG
-    console.log('Page A: manuscriptName.value is:', manuscriptName.value); // DEBUG
-
-    // 1. Basic validation: Ensure manuscript name and model are selected
-    if (!currentManuscriptNameFromForm) {
+    if (!currentManuscriptName) {
       alert('Please enter a manuscript name.')
-      console.error('Manuscript name not provided.')
-      // Potentially clear the queue or re-enable the form
-      // uploadForm.value.removeAllFiles(); // if you want to clear on error
       return
     }
-    if (!currentModelSelectedFromForm) {
+    if (!currentModel) {
       alert('Please select a model.')
-      console.error('Model not selected.')
-      // uploadForm.value.removeAllFiles();
       return
     }
     if (files.length === 0) {
       alert('Please add files to upload.')
-      console.error('No files in the upload queue for processing.')
       return
     }
 
-    console.log('Upload complete. Backend responded. Now updating store from frontend data.')
+    annotationStore.reset()
+    annotationStore.modelName = currentModel
+    annotationStore.recognitions[currentManuscriptName] = {}
 
-    // 2. Update annotationStore
-    annotationStore.reset(); // Optional: Reset store if starting a new manuscript processing session
-
-    // Set the model name
-    annotationStore.modelName = currentModelSelectedFromForm
-
-    // Initialize recognitions for this manuscript
-    annotationStore.recognitions[currentManuscriptNameFromForm] = {}
-
-    // 3. Populate annotationStore.recognitions using uploaded file names as page IDs
-    // Extract successfully uploaded file names. Dropzone's `files` in `completemultiple`
-    // should be the list of files processed in that batch.
     const uploadedPageIds = files
-      .filter(file => file.status === Dropzone.SUCCESS && file.name) // Ensure successful & has a name
-      .map(file => file.name.split('.')[0]) // Use the original filename as the page ID
-      .filter(pageId => pageId && pageId.trim() !== '')
+      .filter((file) => file.status === Dropzone.SUCCESS && file.name)
+      .map((file) => file.name.split('.')[0])
+      .filter((id) => id.trim() !== '')
 
-    if (uploadedPageIds.length === 0 && files.length > 0) {
-        console.warn("No files were successfully uploaded, or they lack names. Cannot set up pages.");
-        // Potentially inform user more directly
-        return;
-    }
-    if (uploadedPageIds.length === 0 && files.length === 0) {
-        console.log("No files were in the queue to begin with.");
-        return;
-    }
-
-
-    // Sort page IDs (filenames) to ensure consistent order
-    // The store's `sortedPageIds` computed property will also sort,
-    // but sorting here before insertion might be slightly cleaner if order of keys matters for non-display logic.
-    // However, relying on `sortedPageIds` from the store is the canonical way.
-    // For now, we just add them, and the store's computed property will handle sorting for navigation.
-    uploadedPageIds.forEach(pageId => {
-      // For each uploaded file, create an entry in recognitions.
-      // Initially, there's no line data (predicted_label, etc.) because
-      // the backend response is just "Hello world".
-      // This structure prepares the store for these pages.
-      // Line data would need to be fetched later or entered manually.
-      annotationStore.recognitions[currentManuscriptNameFromForm][pageId] = {}
+    uploadedPageIds.forEach((pageId) => {
+      annotationStore.recognitions[currentManuscriptName][pageId] = {}
     })
 
-    // 4. Update userAnnotations array
     annotationStore.userAnnotations.push({
-      manuscript_name: currentManuscriptNameFromForm,
-      selected_model: currentModelSelectedFromForm,
-      annotations: {}, // User's ground truth annotations will go here
+      manuscript_name: currentManuscriptName,
+      selected_model: currentModel,
+      annotations: {},
     })
 
-    // 5. Set the initial page in the store
-    // This will use the `sortedPageIds` computed property, which now knows about the pages
-    // we just added from the uploaded filenames.
     annotationStore.setInitialPage()
-
-    if (!annotationStore.currentPage) {
-        console.warn("Current page could not be set. This might happen if no files were successfully processed as pages.");
-        // Handle this case, maybe route to a different page or show an error.
-    }
-
-    // 6. Navigate to the annotation view
-    console.log(`Navigating. Current page set to: ${annotationStore.currentPage}`)
     router.push({ name: 'new-semi-segment' })
   })
-
-  // It's important that Dropzone knows where to send the files.
-  // The <form :action="UPLOAD_URL"> is for non-JS submissions.
-  // Dropzone needs its own `url` option, or it will use the form's action.
-  // Ensure your Dropzone instance is configured with the correct upload URL.
-  // If '#upload-form' already has an action attribute, Dropzone might pick it up.
-  // Explicitly setting it in Dropzone options is safer:
-  // new Dropzone('#upload-form', { url: UPLOAD_URL, ... })
-  // The code above already includes it.
 })
-
-// UPLOAD_URL is used by the button click handler with processQueue, Dropzone uses its 'url' option.
-// const UPLOAD_URL = import.meta.env.VITE_BACKEND_URL + '/new-process-manuscript'; // Already defined
 </script>
 
 <template>
-  <div class="mb-3">
-    <label for="manuscriptName" class="form-label">Manuscript Name</label>
-    <input type="text" class="form-control" id="manuscriptName" v-model="manuscriptName" />
+  <div class="upload-container">
+    <h2 class="title">Upload Manuscript</h2>
+
+    <div class="form-group">
+      <label for="manuscriptName">Manuscript Name</label>
+      <input
+        type="text"
+        id="manuscriptName"
+        v-model="manuscriptName"
+        placeholder="Enter manuscript name"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="model">Select Model</label>
+      <select id="model" v-model="modelSelected">
+        <option disabled value="">Select a model</option>
+        <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
+      </select>
+    </div>
+
+    <form id="upload-form" class="dropzone">
+      <div class="dz-message">
+        <span>Drag & Drop files here or click to upload</span>
+      </div>
+    </form>
+
+    <button
+      class="btn-submit"
+      @click="uploadForm.processQueue()"
+      :disabled="!manuscriptName || !modelSelected"
+    >
+      Submit
+    </button>
   </div>
-  <div class="mb-3">
-    <label for="model" class="form-label">Model</label>
-    <select class="form-select" id="model" v-model="modelSelected"> <!-- Removed placeholder for v-model -->
-      <option disabled value="">Select a model</option> <!-- Default disabled option -->
-      <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
-    </select>
-  </div>
-  <!--
-    The action attribute on the form is a fallback or can be used by Dropzone if `url` option isn't set.
-    For Dropzone, the `url` option specified during initialization is primary.
-    The hidden inputs for manuscript_name and model are still useful as Dropzone will include them as form data.
-  -->
-  <form :action="UPLOAD_URL" class="dropzone" id="upload-form">
-    <div class="dz-message" data-dz-message><span>Drop files here or click to upload.</span></div>
-    <div class="previews"></div> <!-- Dropzone might use this for previews if configured -->
-    <input type="hidden" name="manuscript_name" :value="manuscriptName" />
-    <input type="hidden" name="model" :value="modelSelected" />
-  </form>
-  <button @click="uploadForm.processQueue()" class="btn btn-primary mt-3"
-          :disabled="!manuscriptName || !modelSelected"> <!-- Disable button if critical info missing -->
-    Submit
-  </button>
+  
 </template>
 
-<style>
-form.dropzone {
-  background-color: var(--bs-body-bg);
-  border: var(--bs-border-width) solid var(--bs-border-color);
-  color: var(--bs-body-color);
-  font-family: inherit;
-  min-height: 150px; /* Give dropzone some default height */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+<style scoped>
+.upload-container {
+  max-width: 700px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Basic styling for Dropzone message if you use the default one */
+.title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  color: #1e3a8a;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.6rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.3s, box-shadow 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.dropzone {
+  border: 2px dashed #3b82f6;
+  background-color: #f0f4ff;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.dropzone:hover {
+  background-color: #e0ebff;
+  border-color: #1e3a8a;
+}
+
 .dz-message {
-  text-align: center;
-  margin: 2em 0;
+  font-size: 1.1rem;
+  color: #1e3a8a;
+}
+
+.btn-submit {
+  background-color: #1e3a8a;
+  color: white;
+  padding: 0.7rem 2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+.btn-submit:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background-color: #3b82f6;
+  transform: translateY(-2px);
 }
 </style>
