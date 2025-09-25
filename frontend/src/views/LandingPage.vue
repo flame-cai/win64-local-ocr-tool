@@ -27,7 +27,7 @@ annotationStore.reset()
           :to="{ name: 'upload-manuscript' }"
           class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2"
         >
-          Simple Layout Manuscript
+          Default Mode: Simple Layouts
         </RouterLink>
 
         <RouterLink
