@@ -23,12 +23,12 @@ annotationStore.reset()
           Edit Manuscript <br> (analyze layout)
         </RouterLink>
 
-        <!-- <RouterLink
+        <RouterLink
           :to="{ name: 'upload-manuscript' }"
           class="btn btn-sm btn-secondary text-gray-700 bg-gray-200 m-2"
         >
-          old version -- Annotate
-        </RouterLink> -->
+          Simple Layout Manuscript
+        </RouterLink>
 
         <RouterLink
           :to="{ name: 'uploaded-manuscripts' }"
