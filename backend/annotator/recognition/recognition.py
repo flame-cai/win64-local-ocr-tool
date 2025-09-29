@@ -7,6 +7,7 @@ from flask import current_app
 
 from annotator.recognition.demo import recognise_lines
 from model.models import db, RecognitionLog
+from model.manuscriptmodel import Manuscript, AnnotationLog
 
 def get_filename_without_extension(file_path):
     """
@@ -24,7 +25,7 @@ def get_filename_without_extension(file_path):
 def get_subfolders(folder_path):
     return [subfolder for subfolder in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, subfolder))]
 
-def recognise_characters(folder_path, model, manuscript_name):
+def recognise_characters(folder_path, model, manuscript_name ):
     lines_of_all_pages = {}
     lines_folder_path = os.path.join(folder_path, "lines")
     page_subfolders = get_subfolders(lines_folder_path)

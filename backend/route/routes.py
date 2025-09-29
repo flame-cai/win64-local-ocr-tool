@@ -473,6 +473,8 @@ def recognise_manuscript():
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
     manuscript_name = request.json.get("manuscript_name")
     model = request.json.get("model")
+    # username = request.json.get("username")
+    # userid = request.json.get("userid")
     folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
     lines = recognise_characters(folder_path, model, manuscript_name)
     return lines, 200

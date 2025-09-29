@@ -62,7 +62,7 @@ def google_auth():
 
     return jsonify({
         "user": {
-            "id": user.id,
+            "userid": user.userid,
             "email": user.email,
             "username": user.username,
             "picture": user.picture,

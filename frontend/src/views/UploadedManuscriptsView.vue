@@ -14,12 +14,22 @@ const model = ref()
 const RECOGNITION_URL = import.meta.env.VITE_BACKEND_URL + '/recognise'
 
 function fetch_manuscript() {
+
+  const userdata = localStorage.getItem('user')
+  if (userdata) {
+    try {
+      user = JSON.parse(userdata)
+    } catch (err) {
+      console.error('Failed to parse user data', err)
+    }
+  }
+
   fetch(RECOGNITION_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ manuscript_name: manuscript_name.value, model: model.value }),
+    body: JSON.stringify({ manuscript_name: manuscript_name.value, model: model.value , username: user.username , userid : user.userid }),
   })
     .then((response) => response.json())
     .then((object) => {

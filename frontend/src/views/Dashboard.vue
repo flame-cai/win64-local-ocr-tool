@@ -1,11 +1,30 @@
+
 <script setup>
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
+const manuscripts = ref([])
+
+const userid =  JSON.parse(localStorage.getItem('user')).userid
 
 const goToNewManuscript = () => router.push('/new/upload')
-const goToEditManuscript = () => router.push('/edit')
-const goToUploadManuscript = () => router.push('/uploads')
+const goToEditManuscript = (name , image) => router.push(`/edit/${name}/${image.split(".")[0]}`);
+const goToUploadManuscript = (id) => router.push(`/uploads/${id}`)
+
+const fetchManuscripts = async () => {
+  try {
+    const response = await axios.get(`http://127.0.0.1:5000/manuscripts/get-manuscripts/${userid}`)
+    manuscripts.value = response.data.manuscripts || []
+  } catch (error) {
+    console.error("Error fetching manuscripts:", error)
+  }
+}
+
+onMounted(() => {
+  fetchManuscripts()
+})
 </script>
 
 <template>
@@ -16,54 +35,21 @@ const goToUploadManuscript = () => router.push('/uploads')
     </div>
 
     <div class="manuscript-list-grid">
-      <div class="manuscript-card">
-        <div class="manuscript-info">
-          <p class="manuscript-name">Research Paper Draft 1.0</p>
-          <p class="manuscript-detail">Model: LLM v3.1</p>
-          <p class="manuscript-detail">Date: 2025-09-25</p>
-        </div>
-        <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
-          <button class="action-btn secondary-btn" @click="goToUploadManuscript">
-            Annotate Text
-          </button>
-        </div>
+      <div v-if="manuscripts.length === 0" class="no-manuscripts">
+        No manuscripts found.
       </div>
-      <div class="manuscript-card">
+
+      <div v-for="m in manuscripts" :key="m.id" class="manuscript-card">
         <div class="manuscript-info">
-          <p class="manuscript-name">Thesis Proposal - Chapter 2</p>
-          <p class="manuscript-detail">Model: GPT-4</p>
-          <p class="manuscript-detail">Date: 2025-09-20</p>
+          <p class="manuscript-name">{{ m.manuscript_name }}</p>
+          <p class="manuscript-detail">Model: {{ m.model_selected }}</p>
+          <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
+                    <p class="manuscript-detail">Image: {{ m.fileimagename}}</p>
+
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
-          <button class="action-btn secondary-btn" @click="goToUploadManuscript">
-            Annotate Text
-          </button>
-        </div>
-      </div>
-      <div class="manuscript-card">
-        <div class="manuscript-info">
-          <p class="manuscript-name">Historical Analysis - Draft</p>
-          <p class="manuscript-detail">Model: LLM v2.5</p>
-          <p class="manuscript-detail">Date: 2025-08-15</p>
-        </div>
-        <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
-          <button class="action-btn secondary-btn" @click="goToUploadManuscript">
-            Annotate Text
-          </button>
-        </div>
-      </div>
-      <div class="manuscript-card">
-        <div class="manuscript-info">
-          <p class="manuscript-name">Final Novel Outline</p>
-          <p class="manuscript-detail">Model: Custom</p>
-          <p class="manuscript-detail">Date: 2025-07-01</p>
-        </div>
-        <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
-          <button class="action-btn secondary-btn" @click="goToUploadManuscript">
+          <button class="action-btn" @click="goToEditManuscript(m.manuscript_name, m.fileimagename)">Edit Manuscript</button>
+          <button class="action-btn secondary-btn" @click="goToUploadManuscript(m.id)">
             Annotate Text
           </button>
         </div>
@@ -71,7 +57,6 @@ const goToUploadManuscript = () => router.push('/uploads')
     </div>
   </div>
 </template>
-
 <style scoped>
 .main-container {
   display: flex;

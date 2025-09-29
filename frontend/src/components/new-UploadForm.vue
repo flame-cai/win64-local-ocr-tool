@@ -12,9 +12,14 @@ const modelSelected = ref('')
 
 const message = ref('')
 const messageType = ref('')
-const isLoading = ref(false) // <-- loading state
+const isLoading = ref(false)
 
 const router = useRouter()
+
+// Get user info from localStorage
+const user = JSON.parse(localStorage.getItem('user') || '{}')
+const userId = user.userid || ''
+const username = user.username || ''
 
 const showMessage = (text, type = 'error') => {
   message.value = text
@@ -25,11 +30,59 @@ const showMessage = (text, type = 'error') => {
   }, 3000)
 }
 
+// Fetch models from backend
 fetch(import.meta.env.VITE_BACKEND_URL + '/models')
   .then((res) => res.json())
   .then((data) => {
     models.value = data
   })
+
+// Function to create manuscript via API
+// Function to create manuscript via API
+const createManuscript = async (fileNames = []) => {
+  if (!manuscriptName.value || !modelSelected.value) {
+    showMessage('Please fill manuscript name and select model.')
+    return false
+  }
+
+  const payload = {
+    userid: userId,
+    username: username,
+    manuscript_name: manuscriptName.value,
+    model_selected: modelSelected.value,
+    fileimagename: fileNames, // <<--- added here
+    created_at: new Date().toISOString()
+  }
+
+  try {
+    const res = await fetch(import.meta.env.VITE_BACKEND_URL + '/manuscripts/add-manuscript', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      showMessage(err.message || 'Failed to create manuscript')
+      return false
+    }
+
+    return true
+  } catch (err) {
+    showMessage('Network error: ' + err.message)
+    return false
+  }
+}
+
+// Handle submit button click
+const handleSubmit = async () => {
+  isLoading.value = true
+  // Don’t create manuscript here yet — wait until files are uploaded
+  uploadForm.value.processQueue() 
+}
+
 onMounted(() => {
   uploadForm.value = new Dropzone('#upload-form', {
     url: import.meta.env.VITE_BACKEND_URL + '/new-process-manuscript',
@@ -39,32 +92,22 @@ onMounted(() => {
   })
 
   uploadForm.value.on('sending', (file, xhr, formData) => {
-    isLoading.value = true // <-- start loading
     formData.append('manuscript_name', manuscriptName.value)
     formData.append('model', modelSelected.value)
   })
 
-  uploadForm.value.on('completemultiple', (files) => {
-    isLoading.value = false 
-    const currentManuscriptName = manuscriptName.value
-    const currentModel = modelSelected.value
+  uploadForm.value.on('successmultiple', async (files) => {
+    const fileNames = files.map((file) => file.name)
 
-    if (!currentManuscriptName) {
-      showMessage('Please enter a manuscript name.')
-      return
-    }
-    if (!currentModel) {
-      showMessage('Please select a model.')
-      return
-    }
-    if (files.length === 0) {
-      showMessage('Please add files to upload.')
-      return
-    }
+    // Now create manuscript with fileimagename
+    const success = await createManuscript(fileNames)
+    isLoading.value = false
+
+    if (!success) return
 
     annotationStore.reset()
-    annotationStore.modelName = currentModel
-    annotationStore.recognitions[currentManuscriptName] = {}
+    annotationStore.modelName = modelSelected.value
+    annotationStore.recognitions[manuscriptName.value] = {}
 
     const uploadedPageIds = files
       .filter((file) => file.status === Dropzone.SUCCESS && file.name)
@@ -72,12 +115,12 @@ onMounted(() => {
       .filter((id) => id.trim() !== '')
 
     uploadedPageIds.forEach((pageId) => {
-      annotationStore.recognitions[currentManuscriptName][pageId] = {}
+      annotationStore.recognitions[manuscriptName.value][pageId] = {}
     })
 
     annotationStore.userAnnotations.push({
-      manuscript_name: currentManuscriptName,
-      selected_model: currentModel,
+      manuscript_name: manuscriptName.value,
+      selected_model: modelSelected.value,
       annotations: {},
     })
 
@@ -86,81 +129,74 @@ onMounted(() => {
   })
 
   uploadForm.value.on('error', () => {
-    isLoading.value = false // <-- stop loading on error too
+    isLoading.value = false
   })
 })
+
 </script>
 
 <template>
   <div class="upload-container">
     <Button class="back-btn" @click="router.go(-1)"> ← Back <span >(dashboard)</span></Button>
-  <div class="upload-containerinner">
-    <h2 class="title">Upload Manuscript</h2>
+    <div class="upload-containerinner">
+      <h2 class="title">Upload Manuscript</h2>
 
-    <div
-      v-if="message"
-      :class="['message-box', messageType]"
-    >
-      {{ message }}
-    </div>
-
-    <div class="form-dropzone-row">
-      <div class="form-section">
-        <div class="form-group">
-          <label for="manuscriptName">Manuscript Name</label>
-          <input
-            type="text"
-            id="manuscriptName"
-            v-model="manuscriptName"
-            placeholder="Enter manuscript name"
-            class="input-field"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="model">Select Model</label>
-          <select id="model" v-model="modelSelected" class="select-field">
-            <option disabled value="">Select a model</option>
-            <option
-              v-for="model in models"
-              :key="model"
-              :value="model"
-            >
-              {{ model }}
-            </option>
-          </select>
-        </div>
+      <div v-if="message" :class="['message-box', messageType]">
+        {{ message }}
       </div>
 
-      <div class="dropzone-section">
-        <form id="upload-form" class="dropzone-box">
-          <div class="dz-message">
-            <p>Drag & Drop files here or click to upload</p>
+      <div class="form-dropzone-row">
+        <div class="form-section">
+          <div class="form-group">
+            <label for="manuscriptName">Manuscript Name</label>
+            <input
+              type="text"
+              id="manuscriptName"
+              v-model="manuscriptName"
+              placeholder="Enter manuscript name"
+              class="input-field"
+            />
           </div>
-        </form>
+
+          <div class="form-group">
+            <label for="model">Select Model</label>
+            <select id="model" v-model="modelSelected" class="select-field">
+              <option disabled value="">Select a model</option>
+              <option v-for="model in models" :key="model" :value="model">
+                {{ model }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="dropzone-section">
+          <form id="upload-form" class="dropzone-box">
+            <div class="dz-message">
+              <p>Drag & Drop files here or click to upload</p>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button
+          class="action-btn primary-btn"
+          @click="handleSubmit"
+          :disabled="!manuscriptName || !modelSelected || isLoading"
+        >
+          <span v-if="!isLoading">Submit</span>
+          <span v-else>Uploading...</span>
+        </button>
       </div>
     </div>
 
-    <div class="btn-row">
-      <button
-        class="action-btn primary-btn"
-        @click="uploadForm.processQueue()"
-        :disabled="!manuscriptName || !modelSelected || isLoading"
-      >
-        <span v-if="!isLoading">Submit</span>
-        <span v-else>Uploading...</span>
-      </button>
+    <!-- Loading overlay -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Uploading files, please wait...</p>
     </div>
-  </div>
-
-  <!-- Loading overlay -->
-  <div v-if="isLoading" class="loading-overlay">
-    <div class="spinner"></div>
-    <p>Uploading files, please wait...</p>
-  </div>
   </div>
 </template>
-
 <style scoped>
 .back-btn {
   border-radius: 4px;

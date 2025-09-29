@@ -13,7 +13,7 @@ def create_app():
 
     app.config.from_object(Config())
 
-    CORS(app, resources={r"/*": {"origins": ["http://localhost:5173"]}})
+    CORS(app)
 
     with app.app_context():
         Base.metadata.create_all(bind=engine)
@@ -29,11 +29,8 @@ def create_app():
     app.register_blueprint(routes_bp)
 
 
-    @app.route("/")
-    def home():
-        return {"msg": "Flask + MySQL + OAuth setup working"}
-
     return app
+ 
 
 
 if __name__ == "__main__":

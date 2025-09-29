@@ -915,6 +915,7 @@ const saveAndGoNext = async () => {
       navigateToPage(localPageList.value[currentIndex + 1])
     } else {
       alert('This was the Last page. Saved successfully!')
+      router.push({ path:'/dashboard' })
     }
   } catch (err) {
     alert(`Save failed: ${err.message}`)

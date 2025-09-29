@@ -1,15 +1,28 @@
 <script setup>
 import { useCssModule } from 'vue'
 import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 
 const Home = useCssModule()
 const router = useRouter()
 
-const goToDashboard = () =>
-{
-  const user = localStorage.getItem('user')
-  if (!user) return alert('Please sign in first')
-  router.push('/dashboard')}
+const user = ref(null)
+
+onMounted(() => {
+  const userdata = localStorage.getItem('user')
+  if (userdata) {
+    try {
+      user.value = JSON.parse(userdata)
+    } catch (err) {
+      console.error('Failed to parse user data', err)
+    }
+  }
+})
+
+const goToDashboard = () => {
+  if (!user.value) return alert('Please sign in first')
+  router.push('/dashboard')
+}
 const learnMore = () => alert('Learn more clicked!')
 </script>
 
@@ -20,6 +33,8 @@ const learnMore = () => alert('Learn more clicked!')
         <img src="/flame-logo.svg" alt="Flame logo" :class="Home.logo" />
         <h1 :class="Home.headline">Manuscript Annotation Tool</h1>
         
+        <p v-if="user">Welcome, {{ user.username }}!</p>
+
         <div :class="Home['buttons-section']">
           <button class="btn btn-primary" @click="goToDashboard">Dashboard</button>
           <button class="btn btn-secondary" @click="learnMore">Learn More</button>
@@ -34,6 +49,7 @@ const learnMore = () => alert('Learn more clicked!')
   </div>
 </template>
 
+
 <style module>
 .landing-container {
   display: flex;
@@ -43,7 +59,7 @@ const learnMore = () => alert('Learn more clicked!')
   background: #f3f4f6;
   font-family: 'Inter', sans-serif;
   color: #1f2937;
-  height : 100vh;
+  height: 100vh;
 }
 
 .content-row {
@@ -89,13 +105,16 @@ const learnMore = () => alert('Learn more clicked!')
   margin-top: 1rem;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
   padding: 0.8rem 2rem;
   border: none;
   border-radius: 9999px;
   cursor: pointer;
   font-weight: 600;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .btn-primary {
@@ -132,7 +151,7 @@ const learnMore = () => alert('Learn more clicked!')
   max-width: 800px;
   height: auto;
   border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
 }
 
