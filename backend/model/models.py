@@ -3,6 +3,8 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Integer, Text
+
 
 class Base(DeclarativeBase):
     pass
@@ -28,3 +30,5 @@ class UserAnnotationLog(db.Model):
     levenshtein_distance: Mapped[int]
     image_path: Mapped[str]
     timestamp: Mapped[datetime]
+
+

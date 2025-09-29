@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import current_app
 
 from annotator.recognition.demo import recognise_lines
-from annotator.models import db, RecognitionLog
+from model.models import db, RecognitionLog
 
 def get_filename_without_extension(file_path):
     """

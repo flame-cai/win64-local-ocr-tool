@@ -12,7 +12,7 @@ from flask import current_app
 
 from annotator.finetune.utils import AttrDict
 from annotator.finetune.train import train
-from annotator.models import db, UserAnnotationLog
+from model.models import db, UserAnnotationLog
 
 # --- Configure logging at the top of the file ---
 # This ensures a consistent logging setup throughout the script.

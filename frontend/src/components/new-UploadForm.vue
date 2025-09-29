@@ -5,19 +5,30 @@ import { useRouter } from 'vue-router'
 import { useAnnotationStore } from '@/stores/annotationStore'
 
 const annotationStore = useAnnotationStore()
-const uploadForm = ref()
+const uploadForm = ref(null)
 const manuscriptName = ref('')
 const models = ref([])
 const modelSelected = ref('')
 
+const message = ref('')
+const messageType = ref('')
+
 const router = useRouter()
+
+const showMessage = (text, type = 'error') => {
+  message.value = text
+  messageType.value = type
+  setTimeout(() => {
+    message.value = ''
+    messageType.value = ''
+  }, 3000)
+}
 
 fetch(import.meta.env.VITE_BACKEND_URL + '/models')
   .then((res) => res.json())
   .then((data) => {
     models.value = data
   })
-
 onMounted(() => {
   uploadForm.value = new Dropzone('#upload-form', {
     url: import.meta.env.VITE_BACKEND_URL + '/new-process-manuscript',
@@ -26,20 +37,25 @@ onMounted(() => {
     parallelUploads: Infinity,
   })
 
+  uploadForm.value.on('sending', (file, xhr, formData) => {
+    formData.append('manuscript_name', manuscriptName.value)
+    formData.append('model', modelSelected.value)
+  })
+
   uploadForm.value.on('completemultiple', (files) => {
     const currentManuscriptName = manuscriptName.value
     const currentModel = modelSelected.value
 
     if (!currentManuscriptName) {
-      alert('Please enter a manuscript name.')
+      showMessage('Please enter a manuscript name.')
       return
     }
     if (!currentModel) {
-      alert('Please select a model.')
+      showMessage('Please select a model.')
       return
     }
     if (files.length === 0) {
-      alert('Please add files to upload.')
+      showMessage('Please add files to upload.')
       return
     }
 
@@ -70,130 +86,234 @@ onMounted(() => {
 
 <template>
   <div class="upload-container">
+    <Button class="back-btn" @click="router.go(-1)"> ← Back <span >(dashboard)</span></Button>
+  <div class="upload-containerinner">
     <h2 class="title">Upload Manuscript</h2>
 
-    <div class="form-group">
-      <label for="manuscriptName">Manuscript Name</label>
-      <input
-        type="text"
-        id="manuscriptName"
-        v-model="manuscriptName"
-        placeholder="Enter manuscript name"
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="model">Select Model</label>
-      <select id="model" v-model="modelSelected">
-        <option disabled value="">Select a model</option>
-        <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
-      </select>
-    </div>
-
-    <form id="upload-form" class="dropzone">
-      <div class="dz-message">
-        <span>Drag & Drop files here or click to upload</span>
-      </div>
-    </form>
-
-    <button
-      class="btn-submit"
-      @click="uploadForm.processQueue()"
-      :disabled="!manuscriptName || !modelSelected"
+    <div
+      v-if="message"
+      :class="['message-box', messageType]"
     >
-      Submit
-    </button>
+      {{ message }}
+    </div>
+
+    <div class="form-dropzone-row">
+      <div class="form-section">
+        <div class="form-group">
+          <label for="manuscriptName">Manuscript Name</label>
+          <input
+            type="text"
+            id="manuscriptName"
+            v-model="manuscriptName"
+            placeholder="Enter manuscript name"
+            class="input-field"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="model">Select Model</label>
+          <select id="model" v-model="modelSelected" class="select-field">
+            <option disabled value="">Select a model</option>
+            <option
+              v-for="model in models"
+              :key="model"
+              :value="model"
+            >
+              {{ model }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="dropzone-section">
+        <form id="upload-form" class="dropzone-box">
+          <div class="dz-message">
+            <p>Drag & Drop files here or click to upload</p>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button
+        class="action-btn primary-btn"
+        @click="uploadForm.processQueue()"
+        :disabled="!manuscriptName || !modelSelected"
+      >
+        Submit
+      </button>
+    </div>
   </div>
-  
+  </div>
 </template>
 
 <style scoped>
-.upload-container {
-  max-width: 700px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+.back-btn {
+  border-radius: 4px;
+  background-color: #3b82f6;
+  border: none;
+  color: #ffffff;
+  padding: 8px 20px;
   text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 18px;
+  margin: 4px 2px;
+  cursor: pointer;
+  
+}
+.upload-container {
+  width:60%;
+  margin:  auto;
+  background-color: #ffffff;
+  border-radius: 16px;
+ 
+}
+.upload-containerinner {
+  width: 100%;
+  margin: 3rem auto;
+  padding: 2.5rem;
+  background-color: #ffffff;
+  border-radius: 16px;
+  
+  box-shadow: 0 0px 08px rgba(0, 0, 0, 0.1);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .title {
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   font-weight: bold;
+  margin-bottom: 2.5rem;
+  color: #333;
+  text-align: center;
+}
+
+.message-box {
+  padding: 1rem;
   margin-bottom: 1.5rem;
-  color: #1e3a8a;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.message-box.error {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.form-dropzone-row {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.form-section {
+  flex: 1;
+}
+
+.dropzone-section {
+  flex: 1;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  margin-bottom: 1.5rem;
-  text-align: left;
+  margin-bottom: 2rem;
 }
 
 .form-group label {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   font-weight: 600;
-  color: #333;
+  font-size: 1.1rem;
+  color: #555;
 }
 
-.form-group input,
-.form-group select {
-  padding: 0.6rem 1rem;
-  border: 1px solid #cbd5e1;
+.input-field,
+.select-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
   font-size: 1rem;
   outline: none;
-  transition: border 0.3s, box-shadow 0.3s;
+  color: black;
+  background-color: #fafafa;
+  transition: all 0.3s ease;
 }
 
-.form-group input:focus,
-.form-group select:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+.input-field:focus,
+.select-field:focus {
+  border-color: #4caf50;
+  box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
+  background-color: #fff;
 }
 
-.dropzone {
-  border: 2px dashed #3b82f6;
-  background-color: #f0f4ff;
+.dropzone-box {
+  border: 2px dashed #4caf50;
+  background-color: #f7fff7;
   border-radius: 12px;
-  padding: 2rem;
-  margin-bottom: 1.5rem;
+  padding: 3.5rem 2rem;
   cursor: pointer;
-  transition: background-color 0.3s, border-color 0.3s;
+  text-align: center;
+  transition: all 0.3s ease;
 }
 
-.dropzone:hover {
-  background-color: #e0ebff;
-  border-color: #1e3a8a;
+.dropzone-box:hover {
+  background-color: #e8f5e9;
 }
 
 .dz-message {
   font-size: 1.1rem;
-  color: #1e3a8a;
+  color: #4caf50;
 }
 
-.btn-submit {
-  background-color: #1e3a8a;
-  color: white;
-  padding: 0.7rem 2rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: bold;
+.dz-message p {
+  margin: 0;
+}
+
+.btn-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.action-btn {
   cursor: pointer;
-  transition: background-color 0.3s, transform 0.2s;
+  padding: 10px 24px;
+  font-size: 1.1em;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
 }
 
-.btn-submit:disabled {
-  background-color: #a5b4fc;
-  cursor: not-allowed;
+.primary-btn {
+  color: white;
+  background-color: #4caf50;
+  border-color: #4caf50;
 }
 
-.btn-submit:hover:not(:disabled) {
-  background-color: #3b82f6;
+.primary-btn:hover:not(:disabled) {
+  background-color: #45a049;
+  border-color: #45a049;
   transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+}
+
+.primary-btn:disabled {
+  background-color: #a5d6a7;
+  border-color: #a5d6a7;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-dropzone-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

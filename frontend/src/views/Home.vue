@@ -5,7 +5,11 @@ import { useRouter } from 'vue-router'
 const Home = useCssModule()
 const router = useRouter()
 
-const goToDashboard = () => router.push('/dashboard')
+const goToDashboard = () =>
+{
+  const user = localStorage.getItem('user')
+  if (!user) return alert('Please sign in first')
+  router.push('/dashboard')}
 const learnMore = () => alert('Learn more clicked!')
 </script>
 
@@ -36,10 +40,10 @@ const learnMore = () => alert('Learn more clicked!')
   align-items: center;
   justify-content: center;
   padding: 4rem 2rem;
-
   background: #f3f4f6;
   font-family: 'Inter', sans-serif;
   color: #1f2937;
+  height : 100vh;
 }
 
 .content-row {
@@ -118,14 +122,14 @@ const learnMore = () => alert('Learn more clicked!')
 /* Right side: Manuscript Images */
 .images-section {
   position: relative;
-  width: 500px;
-  min-height: 400px;
+  width: 800px;
+  min-height: 500px;
   flex: 1;
 }
 
 .manuscript-img {
   width: 100%;
-  max-width: 500px;
+  max-width: 800px;
   height: auto;
   border-radius: 12px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.1);

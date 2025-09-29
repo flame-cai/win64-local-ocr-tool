@@ -1,6 +1,6 @@
 <script setup>
 import { RouterView } from 'vue-router'
-import Header from './components/Header.vue'
+import AppHeader from './components/Header.vue'
 
 function setThemeBasedOnPreference() {
   const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -15,6 +15,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 </script>
 
 <template>
-  <Header />
+  <AppHeader/>
   <RouterView />
 </template>
