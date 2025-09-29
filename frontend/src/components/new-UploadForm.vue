@@ -12,6 +12,7 @@ const modelSelected = ref('')
 
 const message = ref('')
 const messageType = ref('')
+const isLoading = ref(false) // <-- loading state
 
 const router = useRouter()
 
@@ -38,11 +39,13 @@ onMounted(() => {
   })
 
   uploadForm.value.on('sending', (file, xhr, formData) => {
+    isLoading.value = true // <-- start loading
     formData.append('manuscript_name', manuscriptName.value)
     formData.append('model', modelSelected.value)
   })
 
   uploadForm.value.on('completemultiple', (files) => {
+    isLoading.value = false 
     const currentManuscriptName = manuscriptName.value
     const currentModel = modelSelected.value
 
@@ -80,6 +83,10 @@ onMounted(() => {
 
     annotationStore.setInitialPage()
     router.push({ name: 'new-semi-segment' })
+  })
+
+  uploadForm.value.on('error', () => {
+    isLoading.value = false // <-- stop loading on error too
   })
 })
 </script>
@@ -138,11 +145,18 @@ onMounted(() => {
       <button
         class="action-btn primary-btn"
         @click="uploadForm.processQueue()"
-        :disabled="!manuscriptName || !modelSelected"
+        :disabled="!manuscriptName || !modelSelected || isLoading"
       >
-        Submit
+        <span v-if="!isLoading">Submit</span>
+        <span v-else>Uploading...</span>
       </button>
     </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div v-if="isLoading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>Uploading files, please wait...</p>
   </div>
   </div>
 </template>
@@ -307,6 +321,36 @@ onMounted(() => {
   border-color: #a5d6a7;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.spinner {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #4caf50;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Responsive adjustments */

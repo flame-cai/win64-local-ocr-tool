@@ -1,21 +1,18 @@
-
 <script setup>
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const goToNewManuscript = () => router.push("/new/upload")
-const goToEditManuscript = () => router.push("/edit")
-const goToUploadManuscript = () => router.push("/uploads")
+const goToNewManuscript = () => router.push('/new/upload')
+const goToEditManuscript = () => router.push('/edit')
+const goToUploadManuscript = () => router.push('/uploads')
 </script>
 
 <template>
   <div class="main-container">
     <div class="header-section">
       <h1>Your Manuscripts</h1>
-      <button class="action-btn primary-btn" @click="goToNewManuscript">
-        + New Manuscript
-      </button>
+      <button class="action-btn primary-btn" @click="goToNewManuscript">+ New Manuscript</button>
     </div>
 
     <div class="manuscript-list-grid">
@@ -26,9 +23,7 @@ const goToUploadManuscript = () => router.push("/uploads")
           <p class="manuscript-detail">Date: 2025-09-25</p>
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">
-            Edit Manuscript
-          </button>
+          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
           <button class="action-btn secondary-btn" @click="goToUploadManuscript">
             Annotate Text
           </button>
@@ -41,11 +36,10 @@ const goToUploadManuscript = () => router.push("/uploads")
           <p class="manuscript-detail">Date: 2025-09-20</p>
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">
-            Edit Manuscript
-          </button>
+          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
           <button class="action-btn secondary-btn" @click="goToUploadManuscript">
-            Annotate Text</button>
+            Annotate Text
+          </button>
         </div>
       </div>
       <div class="manuscript-card">
@@ -55,9 +49,7 @@ const goToUploadManuscript = () => router.push("/uploads")
           <p class="manuscript-detail">Date: 2025-08-15</p>
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">
-            Edit Manuscript
-          </button>
+          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
           <button class="action-btn secondary-btn" @click="goToUploadManuscript">
             Annotate Text
           </button>
@@ -70,15 +62,13 @@ const goToUploadManuscript = () => router.push("/uploads")
           <p class="manuscript-detail">Date: 2025-07-01</p>
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript">
-            Edit Manuscript
-          </button>
+          <button class="action-btn" @click="goToEditManuscript">Edit Manuscript</button>
           <button class="action-btn secondary-btn" @click="goToUploadManuscript">
             Annotate Text
           </button>
         </div>
       </div>
-      </div>
+    </div>
   </div>
 </template>
 
@@ -99,8 +89,8 @@ const goToUploadManuscript = () => router.push("/uploads")
   justify-content: space-between;
   align-items: center;
   margin-bottom: 40px;
-  padding: 0 32px; 
-  box-sizing: border-box; 
+  padding: 0 32px;
+  box-sizing: border-box;
 }
 
 .header-section h1 {
@@ -147,9 +137,9 @@ const goToUploadManuscript = () => router.push("/uploads")
 .manuscript-list-grid {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(4, 1fr); 
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
-  padding: 0 32px; 
+  padding: 0 32px;
   box-sizing: border-box;
 }
 
@@ -163,13 +153,15 @@ const goToUploadManuscript = () => router.push("/uploads")
   border-top: 5px solid #4caf50;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .manuscript-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-    cursor: pointer;
+  transform: translateY(-5px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
 }
 
 .manuscript-info {
@@ -201,9 +193,8 @@ const goToUploadManuscript = () => router.push("/uploads")
 }
 
 .manuscript-card .action-btn {
-    margin-left: 0;
+  margin-left: 0;
 }
-
 
 @media (max-width: 1400px) {
   .manuscript-list-grid {
@@ -221,17 +212,17 @@ const goToUploadManuscript = () => router.push("/uploads")
   .header-section {
     flex-direction: column;
     align-items: flex-start;
-    padding: 0 16px; 
+    padding: 0 16px;
   }
-  
+
   .header-section h1 {
     margin-bottom: 10px;
   }
 
   .manuscript-list-grid {
-    grid-template-columns: 1fr; 
+    grid-template-columns: 1fr;
     gap: 15px;
-    padding: 0 16px; 
+    padding: 0 16px;
   }
 
   .manuscript-actions {

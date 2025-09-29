@@ -170,7 +170,7 @@ def heatmap_to_pointcloud(heatmap, min_peak_value=0.3, min_distance=5, max_growt
 # from your_project.pointcloud import heatmap_to_pointcloud
 
 def images2points(folder_path):
-    print(folder_path)
+    print("this is folder path",folder_path)
     m_name = os.path.basename(os.path.dirname(folder_path))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
