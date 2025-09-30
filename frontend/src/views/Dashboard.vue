@@ -43,8 +43,8 @@ onMounted(() => {
         <div class="manuscript-info">
           <p class="manuscript-name">{{ m.manuscript_name }}</p>
           <p class="manuscript-detail">Model: {{ m.model_selected }}</p>
+          <p class="manuscript-detail">Image: {{ m.fileimagename}}</p>
           <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
-                    <p class="manuscript-detail">Image: {{ m.fileimagename}}</p>
 
         </div>
         <div class="manuscript-actions">
