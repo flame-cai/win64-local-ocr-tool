@@ -59,6 +59,7 @@ function switchToSemiAutoSegmentation() {
     />
   </div>
   <div class="mb-3">
+    <h1>this is image to text page </h1>
     <button class="btn btn-primary me-2" @click="uploadGroundTruth">Fine-tune</button>
     <!-- <button class="btn btn-warning me-2" @click="switchToSegmentation">Correct Image Segments</button> -->
     <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Semi Segmentation</button>

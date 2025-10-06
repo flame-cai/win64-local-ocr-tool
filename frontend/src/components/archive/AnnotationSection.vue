@@ -82,6 +82,9 @@ function switchToSemiAutoSegmentation() {
     />
   </div>
   <div class="mb-3">
+    <h1 >  
+      this is archive annotation page 
+    </h1>
     <button class="btn btn-primary me-2" @click="uploadGroundTruth">Fine-tune</button>
     <button class="btn btn-warning me-2" @click="switchToSemiAutoSegmentation">Semi Automatic Segmentation</button>
     <button class="btn btn-success me-2" @click="annotationStore.exportToTxt">Export</button>

@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from datetime import datetime
 from database.connection import get_db
 from model.manuscriptmodel import Manuscript, AnnotationLog
+import json
 
 manuscript_bp = Blueprint("manuscript", __name__, url_prefix="/manuscripts")
 
@@ -25,14 +26,16 @@ def create_manuscript():
             return jsonify({"message": "Invalid datetime format for 'created_at'. Use ISO 8601 format."}), 400
         db = next(get_db())
 
+
         manuscript = Manuscript(
-            userid=data["userid"],
-            username=data["username"],
-            manuscript_name=data["manuscript_name"],
-            model_selected=data["model_selected"],
-            fileimagename=data["fileimagename"],
-            created_at=created_at_dt
+        userid=data["userid"],
+        username=data["username"],
+        manuscript_name=data["manuscript_name"],
+        model_selected=data["model_selected"],
+        fileimagename=json.dumps(data["fileimagename"]),  # array of filenames
+        created_at=created_at_dt
         )
+
         db.add(manuscript)
         db.commit()
 

@@ -1,21 +1,71 @@
-
+<!--  -->
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useAnnotationStore } from '@/stores/annotationStore'
 
 const router = useRouter()
+const annotationStore = useAnnotationStore()
 const manuscripts = ref([])
+const isLoading = ref(false) // Global loading overlay
 
-const userid =  JSON.parse(localStorage.getItem('user')).userid
+const userid = JSON.parse(localStorage.getItem('user')).userid
+const RECOGNITION_URL = import.meta.env.VITE_BACKEND_URL + '/recognise'
+const fetchManuscriptsurl= import.meta.env.VITE_BACKEND_URL + '/manuscripts/get-manuscripts/' + userid
 
 const goToNewManuscript = () => router.push('/new/upload')
-const goToEditManuscript = (name , image) => router.push(`/edit/${name}/${image.split(".")[0]}`);
-const goToUploadManuscript = (id) => router.push(`/uploads/${id}`)
+const goToEditManuscript = (name, image) => router.push(`/edit/${name}/${image.split(".")[0]}`)
 
+// Annotate Text button logic
+const goToAnnotateManuscript = async (m) => {
+  try {
+    isLoading.value = true // Show loading overlay
+
+    const response = await fetch(RECOGNITION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manuscript_name: m.manuscript_name, model: m.model_selected }),
+    })
+
+    const object = await response.json()
+    const manuscript_name = Object.values(object)[0][0].manuscript_name
+    const selected_model = Object.values(object)[0][0].selected_model
+
+    // Seed recognitions
+    annotationStore.recognitions[manuscript_name] = {}
+    for (const page of Object.keys(object)) {
+      annotationStore.recognitions[manuscript_name][page] = {}
+      for (const line in object[page]) {
+        const line_name = object[page][line]['line']
+        annotationStore.recognitions[manuscript_name][page][line_name] = {
+          predicted_label: object[page][line]['predicted_label'],
+          image_path: object[page][line]['image_path'],
+          confidence_score: object[page][line]['confidence_score'],
+        }
+      }
+    }
+
+    // Seed userAnnotations
+    annotationStore.userAnnotations.push({
+      manuscript_name,
+      selected_model,
+      annotations: {},
+    })
+
+    router.push({ name: 'annotation-section' })
+  } catch (error) {
+    console.error("Error fetching recognition:", error)
+    alert("Failed to load manuscript for annotation.")
+  } finally {
+    isLoading.value = false // Hide loading overlay
+  }
+}
+
+// Fetch manuscripts
 const fetchManuscripts = async () => {
   try {
-    const response = await axios.get(`http://127.0.0.1:5000/manuscripts/get-manuscripts/${userid}`)
+    const response = await axios.get(fetchManuscriptsurl)
     manuscripts.value = response.data.manuscripts || []
   } catch (error) {
     console.error("Error fetching manuscripts:", error)
@@ -45,15 +95,20 @@ onMounted(() => {
           <p class="manuscript-detail">Model: {{ m.model_selected }}</p>
           <p class="manuscript-detail">Image: {{ m.fileimagename}}</p>
           <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
-
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript(m.manuscript_name, m.fileimagename)">Edit Manuscript</button>
-          <button class="action-btn secondary-btn" @click="goToUploadManuscript(m.id)">
+          <button class="action-btn" @click="goToEditManuscript(m.manuscript_name, m.fileimagename)">Edit Layout</button>
+          <button class="action-btn secondary-btn" @click="goToAnnotateManuscript(m)">
             Annotate Text
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading manuscript for annotation, please wait...</p>
     </div>
   </div>
 </template>
@@ -213,5 +268,31 @@ onMounted(() => {
   .manuscript-actions {
     justify-content: space-between;
   }
+}
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.spinner {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #4caf50;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

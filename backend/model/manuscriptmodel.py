@@ -11,7 +11,7 @@ class Manuscript(Base):
     username: Mapped[str] = mapped_column(String(255))
     manuscript_name: Mapped[str] = mapped_column(String(255))
     model_selected: Mapped[str] = mapped_column(String(255))
-    fileimagename: Mapped[str] = mapped_column(String(255))
+    fileimagename: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime]
 
 
@@ -19,8 +19,6 @@ class AnnotationLog(Base):
     __tablename__ = "annotation_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    manuscriptid: Mapped[int] = mapped_column(Integer)
     predicted_label: Mapped[str] = mapped_column(Text)
     confidence_score: Mapped[float]
     manuscript_name: Mapped[str] = mapped_column(String(255))
@@ -29,4 +27,5 @@ class AnnotationLog(Base):
     page: Mapped[str] = mapped_column(String(255))
     line: Mapped[str] = mapped_column(String(255))
     image_path: Mapped[str] = mapped_column(String(255))
+    selected_model: Mapped[str] = mapped_column(String(255))
     timestamp: Mapped[datetime]

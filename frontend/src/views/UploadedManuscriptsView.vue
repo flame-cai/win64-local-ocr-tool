@@ -56,7 +56,7 @@ function fetch_manuscript() {
         annotations: {},
       })
 
-      router.push({ name: 'annotation-section' })
+      router.push({ name:'annotation-section' })
     })
 }
 
