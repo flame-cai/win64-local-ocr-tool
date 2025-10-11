@@ -13,6 +13,10 @@ from flask import current_app
 from annotator.finetune.utils import AttrDict
 from annotator.finetune.train import train
 from model.models import db, UserAnnotationLog
+from database.connection import get_db
+from model.manuscriptmodel import AnnotationLog
+from sqlalchemy.exc import SQLAlchemyError
+
 
 # --- Configure logging at the top of the file ---
 # This ensures a consistent logging setup throughout the script.
@@ -64,6 +68,7 @@ def finetune(data):
     # --- FIXED: Set a random seed for reproducible train/val splits ---
     random_seed = 42
     random.seed(random_seed)
+    mysql_db = next(get_db())
     logger.info(f"Random seed set to {random_seed} for reproducible data splits.")
 
     MANUSCRIPTS_PATH = os.path.join(current_app.config['DATA_PATH'], 'manuscripts')
@@ -144,8 +149,8 @@ def finetune(data):
                 timestamp=datetime.now(),
             )
             log_entries.append(log_entry)
+
             
-            # Add the data point to our list for splitting later
             if os.path.exists(image_path):
                  all_data_points.append({
                     "image_path": image_path,
@@ -159,7 +164,62 @@ def finetune(data):
 
     db.session.add_all(log_entries)
     logger.info(f"Prepared {len(log_entries)} database log entries. Skipped {skipped_images_count} image files due to not being found.")
-    
+    for page in annotations:
+        for line in annotations[page]:
+            ground_truth = annotations[page][line]["ground_truth"]
+            levenshtein_distance = annotations[page][line]["levenshtein_distance"]
+            image_path = os.path.join(
+                MANUSCRIPTS_PATH, manuscript_name, "lines", page, line + ".jpg"
+            )
+            unique_filename = f"{page}_{line}.jpg"
+
+            if not os.path.exists(image_path):
+                logger.warning(f"Image not found, skipping annotation for: {image_path}")
+                skipped_images_count += 1
+                continue
+
+            # Check if log exists for this manuscript/page/line/model
+            existing_log = mysql_db.query(AnnotationLog).filter_by(
+                manuscript_name=manuscript_name,
+                page=page,
+                line=line,
+                model_selected=selected_model
+            ).first()
+
+            if existing_log:
+                existing_log.ground_truth = ground_truth
+                existing_log.levenshtein_distance = levenshtein_distance
+                logger.debug(f"Updated existing AnnotationLog for {unique_filename}")
+            else:
+                log_entry = AnnotationLog(
+                    predicted_label="",
+                    confidence_score=0.0,
+                    manuscript_name=manuscript_name,
+                    ground_truth=ground_truth,
+                    levenshtein_distance=levenshtein_distance,
+                    page=page,
+                    line=line,
+                    image_path=image_path,
+                    model_selected=selected_model,
+                    timestamp=datetime.now()
+                )
+                mysql_db.add(log_entry)
+
+            # Add to data points for training/validation
+            all_data_points.append({
+                "image_path": image_path,
+                "unique_filename": unique_filename,
+                "ground_truth": ground_truth
+            })
+
+    # Commit AnnotationLog entries
+    try:
+        mysql_db.commit()
+        logger.info(f"AnnotationLog entries committed. Skipped {skipped_images_count} missing images.")
+    except SQLAlchemyError as e:
+        mysql_db.rollback()
+        logger.error(f"Failed to commit AnnotationLog entries: {e}")
+        raise
     if not all_data_points:
         logger.error("No valid image-annotation pairs were collected. Cannot proceed with fine-tuning.")
         db.session.commit() # Commit any partial logs
@@ -244,3 +304,4 @@ def finetune(data):
         # This error is not critical for the overall process but should be logged.
 
     logger.info("Finetune process finished successfully.")
+    

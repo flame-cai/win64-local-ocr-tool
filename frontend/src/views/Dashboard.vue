@@ -12,10 +12,18 @@ const isLoading = ref(false) // Global loading overlay
 
 const userid = JSON.parse(localStorage.getItem('user')).userid
 const RECOGNITION_URL = import.meta.env.VITE_BACKEND_URL + '/recognise'
-const fetchManuscriptsurl= import.meta.env.VITE_BACKEND_URL + '/manuscripts/get-manuscripts/' + userid
+const fetchManuscriptsurl =
+  import.meta.env.VITE_BACKEND_URL + '/manuscripts/get-manuscripts/' + userid
 
 const goToNewManuscript = () => router.push('/new/upload')
-const goToEditManuscript = (name, image) => router.push(`/edit/${name}/${image.split(".")[0]}`)
+const goToEditManuscript = (name, image) => {
+  const cleanString = image.replace(/^\[|\]$/g, '')
+
+  const imageArray = cleanString.split(',').map((item) => item.trim())
+
+  const firstImage = imageArray[0].split('.')[0].replace(/['"]+/g, '')
+  router.push(`/edit/${name}/${firstImage}`)
+}
 
 // Annotate Text button logic
 const goToAnnotateManuscript = async (m) => {
@@ -55,8 +63,8 @@ const goToAnnotateManuscript = async (m) => {
 
     router.push({ name: 'annotation-section' })
   } catch (error) {
-    console.error("Error fetching recognition:", error)
-    alert("Failed to load manuscript for annotation.")
+    console.error('Error fetching recognition:', error)
+    alert('Failed to load manuscript for annotation.')
   } finally {
     isLoading.value = false // Hide loading overlay
   }
@@ -68,7 +76,7 @@ const fetchManuscripts = async () => {
     const response = await axios.get(fetchManuscriptsurl)
     manuscripts.value = response.data.manuscripts || []
   } catch (error) {
-    console.error("Error fetching manuscripts:", error)
+    console.error('Error fetching manuscripts:', error)
   }
 }
 
@@ -85,19 +93,22 @@ onMounted(() => {
     </div>
 
     <div class="manuscript-list-grid">
-      <div v-if="manuscripts.length === 0" class="no-manuscripts">
-        No manuscripts found.
-      </div>
+      <div v-if="manuscripts.length === 0" class="no-manuscripts">No manuscripts found.</div>
 
       <div v-for="m in manuscripts" :key="m.id" class="manuscript-card">
         <div class="manuscript-info">
           <p class="manuscript-name">{{ m.manuscript_name }}</p>
           <p class="manuscript-detail">Model: {{ m.model_selected }}</p>
-          <p class="manuscript-detail">Image: {{ m.fileimagename}}</p>
+          <p class="manuscript-detail">Image: {{ m.fileimagename }}</p>
           <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
         </div>
         <div class="manuscript-actions">
-          <button class="action-btn" @click="goToEditManuscript(m.manuscript_name, m.fileimagename)">Edit Layout</button>
+          <button
+            class="action-btn"
+            @click="goToEditManuscript(m.manuscript_name, m.fileimagename)"
+          >
+            Edit Layout
+          </button>
           <button class="action-btn secondary-btn" @click="goToAnnotateManuscript(m)">
             Annotate Text
           </button>
@@ -292,7 +303,11 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>

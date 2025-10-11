@@ -7,6 +7,7 @@ from flask import current_app
 
 from annotator.recognition.demo import recognise_lines
 from model.models import db, RecognitionLog
+from database.connection import get_db  
 from model.manuscriptmodel import Manuscript, AnnotationLog
 
 def get_filename_without_extension(file_path):
@@ -27,6 +28,7 @@ def get_subfolders(folder_path):
 
 def recognise_characters(folder_path, model, manuscript_name ):
     lines_of_all_pages = {}
+    mysql_db = next(get_db())
     lines_folder_path = os.path.join(folder_path, "lines")
     page_subfolders = get_subfolders(lines_folder_path)
     for page_subfolder in page_subfolders:
@@ -53,17 +55,32 @@ def recognise_characters(folder_path, model, manuscript_name ):
             line["line"] = get_filename_without_extension(line["image_path"])
 
             # Add model name to Log
-            log_entry = RecognitionLog(
+            # log_entry = RecognitionLog(
+            #     image_path=line["image_path"],
+            #     predicted_label=line["predicted_label"],
+            #     confidence_score=line["confidence_score"],
+            #     manuscript_name=manuscript_name,
+            #     page=page_subfolder,
+            #     line=line["line"],
+            #     timestamp=datetime.now()
+            # )
+            # db.session.add(log_entry)
+            annotation_entry = AnnotationLog(
                 image_path=line["image_path"],
                 predicted_label=line["predicted_label"],
                 confidence_score=line["confidence_score"],
                 manuscript_name=manuscript_name,
+                ground_truth=None,
+                levenshtein_distance=None,
                 page=page_subfolder,
                 line=line["line"],
+                model_selected=model,
                 timestamp=datetime.now()
             )
-            db.session.add(log_entry)
-        db.session.commit()
+            mysql_db.add(annotation_entry)
+
+        # db.session.commit()
+        mysql_db.commit()
         lines_of_all_pages[page_subfolder] = lines_of_one_page
     
     # clear GPU memory
@@ -83,6 +100,7 @@ def recognise_single_page_characters(manuscript_folder_path, model_name, manuscr
     Returns a dictionary of line data for that page.
     """
     lines_data_for_page = {}
+    mysql_db = next(get_db())
     # Path to the specific page's line images
     page_lines_folder = os.path.join(manuscript_folder_path, "lines", page_to_process)
 
@@ -126,18 +144,32 @@ def recognise_single_page_characters(manuscript_folder_path, model_name, manuscr
             # "selected_model": model_name
         }
 
-        # Log to DB
-        log_entry = RecognitionLog(
+        # # Log to DB
+        # log_entry = RecognitionLog(
+        #     image_path=line_info["image_path"], # Log the actual filesystem path
+        #     predicted_label=line_info["predicted_label"],
+        #     confidence_score=line_info["confidence_score"],
+        #     manuscript_name=manuscript_name,
+        #     page=page_to_process,
+        #     line=line_name, # Log the line name
+        #     timestamp=datetime.now()
+        # )
+        # db.session.add(log_entry)
+
+        # Log to MySQL DB
+        annotation_entry = AnnotationLog(
             image_path=line_info["image_path"], # Log the actual filesystem path
             predicted_label=line_info["predicted_label"],
             confidence_score=line_info["confidence_score"],
             manuscript_name=manuscript_name,
             page=page_to_process,
             line=line_name, # Log the line name
+            model_selected=model_name,
             timestamp=datetime.now()
         )
-        db.session.add(log_entry)
+        mysql_db.add(annotation_entry)
     
-    db.session.commit()
+    # db.session.commit()
+    mysql_db.commit()
     # GPU memory clear can be done after this call in the route handler
     return lines_data_for_page

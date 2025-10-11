@@ -1,34 +1,37 @@
 <script setup>
-import { ref, inject } from "vue"
-import { GoogleLogin } from "vue3-google-login"
+import router from '@/router'
+import { ref, inject } from 'vue'
+import { GoogleLogin } from 'vue3-google-login'
 
-const axios = inject("axios")
+const axios = inject('axios')
 const user = ref(null)
 const showDropdown = ref(false)
 
 const handleSuccess = async (response) => {
   try {
-    const res = await axios.post("http://localhost:5000/auth/google", {
+    const res = await axios.post('http://localhost:5000/auth/google', {
       code: response.code,
     })
     user.value = res.data.user
-    localStorage.setItem("user", JSON.stringify(user.value))
+    localStorage.setItem('user', JSON.stringify(user.value))
+    router.push('/dashboard')
   } catch (err) {
-    console.error("❌ Backend error:", err)
+    console.error('❌ Backend error:', err)
   }
 }
 
 const handleError = (error) => {
-  console.error("Google login failed:", error)
+  console.error('Google login failed:', error)
 }
 
 const logout = () => {
   user.value = null
-  localStorage.removeItem("user")
+  localStorage.removeItem('user')
   showDropdown.value = false
+  window.location.href = '/'
 }
 
-const storedUser = localStorage.getItem("user")
+const storedUser = localStorage.getItem('user')
 if (storedUser) {
   user.value = JSON.parse(storedUser)
 }
@@ -54,9 +57,7 @@ if (storedUser) {
 
       <template v-else>
         <span @click="$router.push('/')" class="home-text">Home</span>
-        <button @click="$router.push('/dashboard')" class="dashboard-btn">
-          Dashboard
-        </button>
+        <button @click="$router.push('/dashboard')" class="dashboard-btn">Dashboard</button>
 
         <div class="profile-container" @click="showDropdown = !showDropdown">
           <img :src="user.picture" alt="User" class="avatar" />
@@ -66,9 +67,7 @@ if (storedUser) {
               <p class="dropdown-name">{{ user.username }}</p>
               <p class="dropdown-email">{{ user.email }}</p>
               <hr />
-              <button @click.stop="logout" class="dropdown-logout">
-                Logout
-              </button>
+              <button @click.stop="logout" class="dropdown-logout">Logout</button>
             </div>
           </transition>
         </div>
@@ -82,7 +81,7 @@ if (storedUser) {
   background-color: #ffffff;
   padding: 16px 32px;
   display: flex;
-  width:100%;
+  width: 100%;
   justify-content: space-between;
   align-items: center;
   border-bottom: rgb(243, 187, 84) 4px solid;
@@ -92,7 +91,7 @@ if (storedUser) {
   color: #32363b;
   font-size: 24px;
   font-weight: 700;
-   flex-shrink: 0; 
+  flex-shrink: 0;
 }
 
 .nav {
@@ -117,7 +116,8 @@ if (storedUser) {
   transition: box-shadow 0.2s ease;
 }
 .google-btn:hover {
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3),
+  box-shadow:
+    0 1px 3px rgba(60, 64, 67, 0.3),
     0 4px 8px rgba(60, 64, 67, 0.15);
 }
 .google-icon {
@@ -136,7 +136,7 @@ if (storedUser) {
   border: 2px solid #e5e7eb;
   object-fit: cover;
 }
-.home-text{
+.home-text {
   color: #32363b;
   font-size: 16px;
   font-weight: 600;
@@ -197,7 +197,7 @@ if (storedUser) {
 .fade-leave-to {
   opacity: 0;
 }
-.dashboard-btn{
+.dashboard-btn {
   background-color: #2563eb;
   color: white;
   font-weight: 600;

@@ -32,7 +32,7 @@ def create_manuscript():
         username=data["username"],
         manuscript_name=data["manuscript_name"],
         model_selected=data["model_selected"],
-        fileimagename=json.dumps(data["fileimagename"]),  # array of filenames
+        fileimagename = json.dumps(data["fileimagename"][::-1]) , # reverse the array of filenames
         created_at=created_at_dt
         )
 

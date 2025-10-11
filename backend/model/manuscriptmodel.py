@@ -27,5 +27,5 @@ class AnnotationLog(Base):
     page: Mapped[str] = mapped_column(String(255))
     line: Mapped[str] = mapped_column(String(255))
     image_path: Mapped[str] = mapped_column(String(255))
-    selected_model: Mapped[str] = mapped_column(String(255))
+    model_selected: Mapped[str] = mapped_column(String(255))
     timestamp: Mapped[datetime]
