@@ -4,16 +4,18 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAnnotationStore } from '@/stores/annotationStore'
+import { Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const annotationStore = useAnnotationStore()
 const manuscripts = ref([])
-const isLoading = ref(false) // Global loading overlay
+const isLoading = ref(false)
 
 const userid = JSON.parse(localStorage.getItem('user')).userid
 const RECOGNITION_URL = import.meta.env.VITE_BACKEND_URL + '/recognise'
 const fetchManuscriptsurl =
   import.meta.env.VITE_BACKEND_URL + '/manuscripts/get-manuscripts/' + userid
+const deleteManuscripturl = import.meta.env.VITE_BACKEND_URL + '/manuscripts/delete-manuscript'
 
 const goToNewManuscript = () => router.push('/new/upload')
 const goToEditManuscript = (name, image) => {
@@ -54,7 +56,6 @@ const goToAnnotateManuscript = async (m) => {
       }
     }
 
-    // Seed userAnnotations
     annotationStore.userAnnotations.push({
       manuscript_name,
       selected_model,
@@ -66,7 +67,7 @@ const goToAnnotateManuscript = async (m) => {
     console.error('Error fetching recognition:', error)
     alert('Failed to load manuscript for annotation.')
   } finally {
-    isLoading.value = false // Hide loading overlay
+    isLoading.value = false
   }
 }
 
@@ -77,6 +78,28 @@ const fetchManuscripts = async () => {
     manuscripts.value = response.data.manuscripts || []
   } catch (error) {
     console.error('Error fetching manuscripts:', error)
+  }
+}
+const deleteManuscript = async (manuscript_name, model_selected) => {
+  try {
+    isLoading.value = true
+    const deletereponse = await axios.delete(deleteManuscripturl, {
+      data: {
+        userid,
+        manuscript_name,
+        model_selected,
+      },
+    })
+
+    if (deletereponse.status === 200) {
+      fetchManuscripts()
+      isLoading.value = false
+    }
+  } catch (error) {
+    console.error('Error deleting manuscript:', error)
+    alert('Failed to delete manuscript.')
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -97,9 +120,29 @@ onMounted(() => {
 
       <div v-for="m in manuscripts" :key="m.id" class="manuscript-card">
         <div class="manuscript-info">
-          <p class="manuscript-name">{{ m.manuscript_name }}</p>
+          <div class="manuscript-name">
+            <span class="manuscript-title">{{ m.manuscript_name }}</span>
+            <button
+              class="delete-btn"
+              title="Delete"
+              @click="deleteManuscript(m.manuscript_name, m.model_selected)"
+            >
+              <Trash2 class="delete-icon" />
+            </button>
+          </div>
+
           <p class="manuscript-detail">Model: {{ m.model_selected }}</p>
-          <p class="manuscript-detail">Image: {{ m.fileimagename }}</p>
+          <p class="manuscript-detail">
+            Image:
+            {{
+              m.fileimagename
+                ? m.fileimagename
+                    .split('.')[0]
+                    .replace(/['"\[\]]+/g, '')
+                    .slice(0, 10) + (m.fileimagename.split('.')[0].length > 10 ? '...' : '')
+                : ''
+            }}
+          </p>
           <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
         </div>
         <div class="manuscript-actions">
@@ -119,7 +162,7 @@ onMounted(() => {
     <!-- Loading overlay -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
-      <p>Loading manuscript for annotation, please wait...</p>
+      <p> process is underway, please wait...</p>
     </div>
   </div>
 </template>
@@ -220,14 +263,47 @@ onMounted(() => {
   gap: 8px;
   font-size: 0.9em;
   color: #555;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+.manuscript-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.manuscript-name {
+.manuscript-title {
   font-weight: 700;
-  color: #222;
   font-size: 1.2em;
-  margin: 0 0 10px 0;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-icon {
+  width: 20px;
+  height: 20px;
+  color: #e53935;
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.delete-btn:hover .delete-icon {
+  color: #b71c1c;
+  transform: scale(1.1);
 }
 
 .manuscript-detail {

@@ -7,13 +7,15 @@
         <button @click="previousPage" :disabled="loading || isProcessingSave || isFirstPage">
           Previous
         </button>
-        <button @click="nextPage" :disabled="loading || isProcessingSave || isLastPage">Next</button>
+        <button @click="nextPage" :disabled="loading || isProcessingSave || isLastPage">
+          Next
+        </button>
         <button @click="saveAndGoNext" :disabled="loading || isProcessingSave">
           Save & Next (S)
         </button>
-        <button @click="goToIMG2TXTPage" :disabled="loading || isProcessingSave">
+        <!-- <button @click="goToIMG2TXTPage" :disabled="loading || isProcessingSave">
           Annotate Text
-        </button>
+        </button> -->
         <div class="toggle-container">
           <label>
             <input type="checkbox" v-model="editModeActive" :disabled="isProcessingSave" />
@@ -34,6 +36,79 @@
       <button class="panel-toggle-btn" @click="isToolbarCollapsed = !isToolbarCollapsed">
         {{ isToolbarCollapsed ? 'Show Toolbar' : 'Hide' }}
       </button>
+    </div>
+    <div class="bottom-panel">
+      <div class="panel-toggle-bar" @click="isControlsCollapsed = !isControlsCollapsed">
+        <div class="edit-instructions">
+          <p v-if="isControlsCollapsed && regionLabelingModeActive">
+            Hold 'e' and hover over lines to label them. Release 'e' and press again for the next
+            label. 's' to save.
+          </p>
+          <p v-else-if="isControlsCollapsed && editModeActive">
+            Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle modes with 'w'/'r'.
+          </p>
+          <p v-else-if="isControlsCollapsed && !editModeActive && !regionLabelingModeActive">
+            Press 'w' to edit edges, 'r' to label regions.
+          </p>
+          <p v-else-if="regionLabelingModeActive">
+            Hold 'e' to label textlines with the current label. Release and press 'e' again to move
+            to the next label.
+          </p>
+          <p v-else-if="editModeActive && !isAKeyPressed && !isDKeyPressed">
+            Select nodes to manage edges, or use hotkeys.
+          </p>
+          <p v-else-if="editModeActive && isAKeyPressed">Release 'A' to connect nodes.</p>
+          <p v-else-if="editModeActive && isDKeyPressed">Release 'D' to stop deleting.</p>
+        </div>
+        <button class="panel-toggle-btn">
+          {{ !isControlsCollapsed ? 'Show Controls' : 'Hide Controls' }}
+        </button>
+      </div>
+
+      <div v-show="!isControlsCollapsed" class="bottom-panel-content">
+        <div v-if="editModeActive && !isAKeyPressed && !isDKeyPressed" class="edit-controls">
+          <div class="edit-actions">
+            <button @click="resetSelection">Cancel Selection</button>
+            <button
+              @click="addEdge"
+              :disabled="
+                selectedNodes.length !== 2 || edgeExists(selectedNodes[0], selectedNodes[1])
+              "
+            >
+              Add Edge
+            </button>
+            <button
+              @click="deleteEdge"
+              :disabled="
+                selectedNodes.length !== 2 || !edgeExists(selectedNodes[0], selectedNodes[1])
+              "
+            >
+              Delete Edge
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="(editModeActive || regionLabelingModeActive) && graphIsLoaded"
+          class="modifications-log-container"
+        >
+          <button @click="saveCurrentGraph" :disabled="loading || isProcessingSave">
+            Save Graph & Labels
+          </button>
+          <div v-if="modifications.length > 0" class="modifications-details">
+            <h3>Modifications ({{ modifications.length }})</h3>
+            <button @click="resetModifications" :disabled="loading">Reset All Changes</button>
+            <ul>
+              <li v-for="(mod, index) in modifications" :key="index" class="modification-item">
+                {{ mod.type === 'add' ? 'Added' : 'Removed' }} edge: {{ mod.source }} ↔
+                {{ mod.target }}
+                <button @click="undoModification(index)" class="undo-button">Undo</button>
+              </li>
+            </ul>
+          </div>
+          <p v-else-if="!loading">No edge modifications in this session.</p>
+        </div>
+      </div>
     </div>
 
     <!-- Main Content: Visualization Area -->
@@ -121,79 +196,6 @@
     </div>
 
     <!-- Bottom Panel: Collapsible -->
-    <div class="bottom-panel">
-      <div class="panel-toggle-bar" @click="isControlsCollapsed = !isControlsCollapsed">
-        <div class="edit-instructions">
-          <p v-if="isControlsCollapsed && regionLabelingModeActive">
-            Hold 'e' and hover over lines to label them. Release 'e' and press again for the next
-            label. 's' to save.
-          </p>
-          <p v-else-if="isControlsCollapsed && editModeActive">
-            Hold 'a' to connect, 'd' to delete. Press 's' to save & next. Toggle modes with 'w'/'r'.
-          </p>
-          <p v-else-if="isControlsCollapsed && !editModeActive && !regionLabelingModeActive">
-            Press 'w' to edit edges, 'r' to label regions.
-          </p>
-          <p v-else-if="regionLabelingModeActive">
-            Hold 'e' to label textlines with the current label. Release and press 'e' again to move
-            to the next label.
-          </p>
-          <p v-else-if="editModeActive && !isAKeyPressed && !isDKeyPressed">
-            Select nodes to manage edges, or use hotkeys.
-          </p>
-          <p v-else-if="editModeActive && isAKeyPressed">Release 'A' to connect nodes.</p>
-          <p v-else-if="editModeActive && isDKeyPressed">Release 'D' to stop deleting.</p>
-        </div>
-        <button class="panel-toggle-btn">
-          {{ isControlsCollapsed ? 'Show Controls' : 'Hide Controls' }}
-        </button>
-      </div>
-
-      <div v-show="!isControlsCollapsed" class="bottom-panel-content">
-        <div v-if="editModeActive && !isAKeyPressed && !isDKeyPressed" class="edit-controls">
-          <div class="edit-actions">
-            <button @click="resetSelection">Cancel Selection</button>
-            <button
-              @click="addEdge"
-              :disabled="selectedNodes.length !== 2 || edgeExists(selectedNodes[0], selectedNodes[1])"
-            >
-              Add Edge
-            </button>
-            <button
-              @click="deleteEdge"
-              :disabled="selectedNodes.length !== 2 || !edgeExists(selectedNodes[0], selectedNodes[1])"
-            >
-              Delete Edge
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="(editModeActive || regionLabelingModeActive) && graphIsLoaded"
-          class="modifications-log-container"
-        >
-          <button @click="saveCurrentGraph" :disabled="loading || isProcessingSave">
-            Save Graph & Labels
-          </button>
-          <div v-if="modifications.length > 0" class="modifications-details">
-            <h3>Modifications ({{ modifications.length }})</h3>
-            <button @click="resetModifications" :disabled="loading">Reset All Changes</button>
-            <ul>
-              <li
-                v-for="(mod, index) in modifications"
-                :key="index"
-                class="modification-item"
-              >
-                {{ mod.type === 'add' ? 'Added' : 'Removed' }} edge: {{ mod.source }} ↔
-                {{ mod.target }}
-                <button @click="undoModification(index)" class="undo-button">Undo</button>
-              </li>
-            </ul>
-          </div>
-          <p v-else-if="!loading">No edge modifications in this session.</p>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -265,7 +267,7 @@ const manuscriptNameForDisplay = computed(() => localManuscriptName.value)
 const currentPageForDisplay = computed(() => localCurrentPage.value)
 const isFirstPage = computed(() => localPageList.value.indexOf(localCurrentPage.value) === 0)
 const isLastPage = computed(
-  () => localPageList.value.indexOf(localCurrentPage.value) === localPageList.value.length - 1
+  () => localPageList.value.indexOf(localCurrentPage.value) === localPageList.value.length - 1,
 )
 
 const scaledWidth = computed(() => Math.floor(dimensions.value[0] * scaleFactor))
@@ -339,7 +341,7 @@ const fetchPageData = async (manuscript, page) => {
 
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscript}/${page}`
+      `${import.meta.env.VITE_BACKEND_URL}/semi-segment/${manuscript}/${page}`,
     )
     if (!response.ok) throw new Error((await response.json()).error || 'Failed to fetch page data')
     const data = await response.json()
@@ -377,7 +379,7 @@ const fetchPageList = async (manuscript) => {
   if (!manuscript) return
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/manuscript/${manuscript}/pages`
+      `${import.meta.env.VITE_BACKEND_URL}/manuscript/${manuscript}/pages`,
     )
     if (!response.ok) throw new Error('Failed to fetch page list')
     localPageList.value = await response.json()
@@ -420,7 +422,7 @@ watch(
     updateUniqueNodeEdgeCounts()
     computeTextlines()
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true },
 )
 
 const resetWorkingGraph = () => {
@@ -532,7 +534,7 @@ const handleSvgMouseMove = (event) => {
             scaleX(n1.x),
             scaleY(n1.y),
             scaleX(n2.x),
-            scaleY(n2.y)
+            scaleY(n2.y),
           ) < EDGE_HOVER_THRESHOLD
         ) {
           // An edge connects two nodes of the same textline, so we can use either.
@@ -645,8 +647,7 @@ const handleGlobalKeyUp = (e) => {
 
 const edgeExists = (nodeA, nodeB) =>
   workingGraph.edges.some(
-    (e) =>
-      (e.source === nodeA && e.target === nodeB) || (e.source === nodeB && e.target === nodeA)
+    (e) => (e.source === nodeA && e.target === nodeB) || (e.source === nodeB && e.target === nodeA),
   )
 const addEdge = () => {
   if (selectedNodes.value.length !== 2 || edgeExists(...selectedNodes.value)) return
@@ -661,7 +662,7 @@ const deleteEdge = () => {
   const [source, target] = selectedNodes.value
   const edgeIndex = workingGraph.edges.findIndex(
     (e) =>
-      (e.source === source && e.target === target) || (e.source === target && e.target === source)
+      (e.source === source && e.target === target) || (e.source === target && e.target === source),
   )
   if (edgeIndex === -1) return
   const removedEdge = workingGraph.edges.splice(edgeIndex, 1)[0]
@@ -677,7 +678,7 @@ const undoModification = (index) => {
   const mod = modifications.value.splice(index, 1)[0]
   if (mod.type === 'add') {
     const edgeIndex = workingGraph.edges.findIndex(
-      (e) => e.source === mod.source && e.target === mod.target
+      (e) => e.source === mod.source && e.target === mod.target,
     )
     if (edgeIndex !== -1) workingGraph.edges.splice(edgeIndex, 1)
   } else if (mod.type === 'delete') {
@@ -703,8 +704,8 @@ const distanceToLineSegment = (px, py, x1, y1, x2, y2) =>
           Math.min(
             1,
             ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) /
-              (Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) || 1)
-          )
+              (Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) || 1),
+          ),
         ) *
           (x2 - x1)),
     py -
@@ -714,10 +715,10 @@ const distanceToLineSegment = (px, py, x1, y1, x2, y2) =>
           Math.min(
             1,
             ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) /
-              (Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) || 1)
-          )
+              (Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2) || 1),
+          ),
         ) *
-          (y2 - y1))
+          (y2 - y1)),
   )
 const handleEdgeHoverDelete = (mouseX, mouseY) => {
   for (let i = workingGraph.edges.length - 1; i >= 0; i--) {
@@ -727,8 +728,14 @@ const handleEdgeHoverDelete = (mouseX, mouseY) => {
     if (
       n1 &&
       n2 &&
-      distanceToLineSegment(mouseX, mouseY, scaleX(n1.x), scaleY(n1.y), scaleX(n2.x), scaleY(n2.y)) <
-        EDGE_HOVER_THRESHOLD
+      distanceToLineSegment(
+        mouseX,
+        mouseY,
+        scaleX(n1.x),
+        scaleY(n1.y),
+        scaleX(n2.x),
+        scaleY(n2.y),
+      ) < EDGE_HOVER_THRESHOLD
     ) {
       const removed = workingGraph.edges.splice(i, 1)[0]
       modifications.value.push({
@@ -818,7 +825,7 @@ const saveModifications = async () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
-      }
+      },
     )
     if (!res.ok) throw new Error((await res.json()).error || 'Save failed')
     const data = await res.json()
@@ -895,15 +902,15 @@ const nextPage = () =>
       navigateToPage(localPageList.value[currentIndex + 1])
     }
   })
-const goToIMG2TXTPage = () => {
-  if (isEditModeFlow.value) {
-    alert(
-      "Text annotation is part of the 'New Manuscript' flow. This action is disabled in edit mode."
-    )
-    return
-  }
-  confirmAndNavigate(() => router.push({ name: 'img-2-txt' }))
-}
+// const goToIMG2TXTPage = () => {
+//   if (isEditModeFlow.value) {
+//     alert(
+//       "Text annotation is part of the 'New Manuscript' flow. This action is disabled in edit mode."
+//     )
+//     return
+//   }
+//   confirmAndNavigate(() => router.push({ name: 'img-2-txt' }))
+// }
 
 const saveAndGoNext = async () => {
   if (loading.value || isProcessingSave.value) return
@@ -915,7 +922,7 @@ const saveAndGoNext = async () => {
       navigateToPage(localPageList.value[currentIndex + 1])
     } else {
       alert('This was the Last page. Saved successfully!')
-      router.push({ path:'/dashboard' })
+      router.push({ path: '/dashboard' })
     }
   } catch (err) {
     alert(`Save failed: ${err.message}`)
@@ -958,7 +965,7 @@ watch(
       localCurrentPage.value = newPage
       fetchPageData(localManuscriptName.value, newPage)
     }
-  }
+  },
 )
 
 watch(
@@ -968,7 +975,7 @@ watch(
       localCurrentPage.value = newPageName
       fetchPageData(localManuscriptName.value, newPageName)
     }
-  }
+  },
 )
 
 watch(editModeActive, (isEditing) => {
@@ -1194,5 +1201,3 @@ button:disabled {
   background-color: #7a7a4a;
 }
 </style>
-
-

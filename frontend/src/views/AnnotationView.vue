@@ -4,9 +4,6 @@ import { RouterView } from 'vue-router'
 
 <template>
   <div class="annotationView-container">
-    <header>
-      <h1>Manuscript Annotation Tool</h1>
-    </header>
     <RouterView />
   </div>
 </template>

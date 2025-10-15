@@ -20,6 +20,9 @@ const handleSuccess = async (response) => {
   }
 }
 
+const gotodashboard = () => {
+  window.location.href = '/dashboard'
+}
 const handleError = (error) => {
   console.error('Google login failed:', error)
 }
@@ -57,7 +60,7 @@ if (storedUser) {
 
       <template v-else>
         <span @click="$router.push('/')" class="home-text">Home</span>
-        <button @click="$router.push('/dashboard')" class="dashboard-btn">Dashboard</button>
+        <button @click="gotodashboard" class="dashboard-btn">Dashboard</button>
 
         <div class="profile-container" @click="showDropdown = !showDropdown">
           <img :src="user.picture" alt="User" class="avatar" />

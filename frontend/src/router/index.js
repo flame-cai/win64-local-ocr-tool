@@ -80,11 +80,22 @@ const router = createRouter({
       component: () => import('../views/UploadedManuscriptsView.vue'),
     },
     {
-      path:"/dashboard",
+      path: '/dashboard',
       name: 'dashboard',
       component: () => import('../views/Dashboard.vue'),
-    }
+    },
   ],
 })
+router.beforeEach((to, from, next) => {
+  const publicPaths = ['/']
+  const authRequired = !publicPaths.includes(to.path)
+  const user = localStorage.getItem('user')
 
+  if (authRequired && !user) {
+    next('/')
+    alert('Please sign in first')
+  } else {
+    next()
+  }
+})
 export default router

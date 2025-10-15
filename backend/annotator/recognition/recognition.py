@@ -4,6 +4,7 @@ import torch
 
 from datetime import datetime
 from flask import current_app
+import logging
 
 from annotator.recognition.demo import recognise_lines
 from model.models import db, RecognitionLog
@@ -26,15 +27,120 @@ def get_filename_without_extension(file_path):
 def get_subfolders(folder_path):
     return [subfolder for subfolder in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, subfolder))]
 
-def recognise_characters(folder_path, model, manuscript_name ):
-    lines_of_all_pages = {}
+# def recognise_characters(folder_path, model, manuscript_name ):
+#     lines_of_all_pages = {}
+#     mysql_db = next(get_db())
+#     lines_folder_path = os.path.join(folder_path, "lines")
+#     page_subfolders = get_subfolders(lines_folder_path)
+#     for page_subfolder in page_subfolders:
+#         lines_of_one_page = recognise_lines(
+#             image_folder=os.path.join(lines_folder_path, page_subfolder),
+#             saved_model=os.path.join(current_app.config['DATA_PATH'], 'models', 'recognition', model),
+#             transformation=None,
+#             feature_extraction="ResNet",
+#             sequence_modeling="BiLSTM",
+#             prediction="CTC",
+#             workers=0,
+#             batch_max_length=250,
+#             imgH=50,
+#             imgW=2000,
+#             pad=True,
+#             character="""`0123456789~!@#$%^&*()-_+=[]\\{}|;':",./<>? abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.ँंःअअंअःआइईउऊऋएऐऑओऔकखगघङचछजझञटठडढणतथदधनऩपफबभमयरऱलळवशषसह़ािीुूृॅेैॉोौ्ॐ॒क़ख़ग़ज़ड़ढ़फ़ॠ।०१२३४५६७८९॰""",
+#             hidden_size=512,
+#             output_channel=512,
+#         )
+#         for line in lines_of_one_page:
+#             line["manuscript_name"] = manuscript_name
+#             line["selected_model"] = model
+#             line["page"] = page_subfolder
+#             line["line"] = get_filename_without_extension(line["image_path"])
+
+#             # Add model name to Log
+#             # log_entry = RecognitionLog(
+#             #     image_path=line["image_path"],
+#             #     predicted_label=line["predicted_label"],
+#             #     confidence_score=line["confidence_score"],
+#             #     manuscript_name=manuscript_name,
+#             #     page=page_subfolder,
+#             #     line=line["line"],
+#             #     timestamp=datetime.now()
+#             # )
+#             # db.session.add(log_entry)
+#             annotation_entry = AnnotationLog(
+#                 image_path=line["image_path"],
+#                 predicted_label=line["predicted_label"],
+#                 confidence_score=line["confidence_score"],
+#                 manuscript_name=manuscript_name,
+#                 ground_truth=None,
+#                 levenshtein_distance=None,
+#                 page=page_subfolder,
+#                 line=line["line"],
+#                 model_selected=model,
+#                 timestamp=datetime.now()
+#             )
+#             mysql_db.add(annotation_entry)
+
+#         # db.session.commit()
+#         mysql_db.commit()
+#         lines_of_all_pages[page_subfolder] = lines_of_one_page
+    
+#     # clear GPU memory
+#     del lines_of_one_page
+#     torch.cuda.empty_cache()
+    
+#     return lines_of_all_pages
+
+def recognise_characters(folder_path, model, manuscript_name):
+    logger = current_app.logger
+    print("recognise_characters", folder_path, model, manuscript_name)
+
+    logger.info(f"Starting recognition for manuscript: '{manuscript_name}' using model: '{model}'")
+
     mysql_db = next(get_db())
+    lines_of_all_pages = {}
+
+    # ✅ STEP 1: Check if data already exists for this manuscript + model
+    existing_logs = (
+        mysql_db.query(AnnotationLog)
+        .filter_by(manuscript_name=manuscript_name, model_selected=model)
+        .all()
+    )
+
+    if existing_logs and len(existing_logs) > 0:
+        logger.info(f"Existing recognition data found for manuscript '{manuscript_name}' with model '{model}'. Fetching from DB.")
+        lines_of_all_pages = {}
+
+        # Reconstruct the same structure as what recognise_lines() returns
+        for log in existing_logs:
+            page = log.page
+            if page not in lines_of_all_pages:
+                lines_of_all_pages[page] = []
+            display_label = log.ground_truth if log.ground_truth else log.predicted_label
+            lines_of_all_pages[page].append({
+                "image_path": log.image_path,
+                "predicted_label": display_label,
+                "confidence_score": log.confidence_score,
+                "manuscript_name": log.manuscript_name,
+                "selected_model": log.model_selected,
+                "page": log.page,
+                "line": log.line,
+            })
+
+        # ✅ Return cached results directly
+        logger.info(f"Returning {len(existing_logs)} existing recognition entries from database.")
+        return lines_of_all_pages
+
+    # ✅ STEP 2: Otherwise, run recognition process
+    logger.info("No existing recognition data found — starting fresh recognition process.")
     lines_folder_path = os.path.join(folder_path, "lines")
     page_subfolders = get_subfolders(lines_folder_path)
+
     for page_subfolder in page_subfolders:
         lines_of_one_page = recognise_lines(
             image_folder=os.path.join(lines_folder_path, page_subfolder),
-            saved_model=os.path.join(current_app.config['DATA_PATH'], 'models', 'recognition', model),
+            saved_model=os.path.join(
+                current_app.config['DATA_PATH'], 'models', 'recognition', model
+            ),
             transformation=None,
             feature_extraction="ResNet",
             sequence_modeling="BiLSTM",
@@ -48,23 +154,14 @@ def recognise_characters(folder_path, model, manuscript_name ):
             hidden_size=512,
             output_channel=512,
         )
+
         for line in lines_of_one_page:
             line["manuscript_name"] = manuscript_name
             line["selected_model"] = model
             line["page"] = page_subfolder
             line["line"] = get_filename_without_extension(line["image_path"])
 
-            # Add model name to Log
-            # log_entry = RecognitionLog(
-            #     image_path=line["image_path"],
-            #     predicted_label=line["predicted_label"],
-            #     confidence_score=line["confidence_score"],
-            #     manuscript_name=manuscript_name,
-            #     page=page_subfolder,
-            #     line=line["line"],
-            #     timestamp=datetime.now()
-            # )
-            # db.session.add(log_entry)
+            # Save recognition results into AnnotationLog
             annotation_entry = AnnotationLog(
                 image_path=line["image_path"],
                 predicted_label=line["predicted_label"],
@@ -75,19 +172,20 @@ def recognise_characters(folder_path, model, manuscript_name ):
                 page=page_subfolder,
                 line=line["line"],
                 model_selected=model,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
             mysql_db.add(annotation_entry)
 
-        # db.session.commit()
         mysql_db.commit()
         lines_of_all_pages[page_subfolder] = lines_of_one_page
-    
-    # clear GPU memory
+
+    # ✅ STEP 3: Clear GPU memory
     del lines_of_one_page
     torch.cuda.empty_cache()
-    
+
+    logger.info(f"Recognition completed for manuscript '{manuscript_name}' using model '{model}'.")
     return lines_of_all_pages
+
 
 
 # In annotator/recognition/recognition.py (or wherever recognise_characters is)
