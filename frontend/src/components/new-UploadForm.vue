@@ -3,6 +3,7 @@ import Dropzone from 'dropzone'
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAnnotationStore } from '@/stores/annotationStore'
+import axios from 'axios'
 
 const annotationStore = useAnnotationStore()
 const uploadForm = ref(null)
@@ -10,11 +11,12 @@ const manuscriptName = ref('')
 const models = ref([])
 const modelSelected = ref('')
 const skipLayout = ref(false)
-
+const manuscriList = ref([])
 const message = ref('')
 const messageType = ref('')
 const isLoading = ref(false)
 const fileCount = ref(0)
+const shownameerror = ref(false)
 
 const router = useRouter()
 
@@ -76,6 +78,34 @@ const createManuscript = async (fileNames = []) => {
   } catch (err) {
     showMessage('Network error: ' + err.message)
     return false
+  }
+}
+const HandleuniqiManuscript = async () => {
+  shownameerror.value = false
+
+  if (!manuscriptName.value) {
+    showMessage('Please enter a manuscript name.')
+    return
+  }
+
+  try {
+    const response = await fetch(import.meta.env.VITE_BACKEND_URL + '/uploaded-manuscripts')
+    const manuscripts = await response.json()
+
+    const exists = manuscripts.some(
+      (manuscript) => manuscript.trim().toLowerCase() === manuscriptName.value.trim().toLowerCase(),
+    )
+
+    if (exists) {
+      shownameerror.value = true
+      showMessage('Manuscript name already exists.')
+      return
+    }
+
+    handleSubmit()
+  } catch (error) {
+    console.error('Error fetching manuscripts:', error)
+    showMessage('Failed to validate manuscript name.')
   }
 }
 
@@ -252,7 +282,7 @@ onMounted(() => {
               <p>Drag & Drop files here or click to upload</p>
             </div>
             <div class="total-count-display" v-if="fileCount > 0">
-              Total Pages : <strong>{{ fileCount +1}}</strong>
+              Total Pages : <strong>{{ fileCount + 1 }}</strong>
             </div>
             <div id="custom-preview" class="custom-preview"></div>
           </form>
@@ -269,7 +299,7 @@ onMounted(() => {
       <div class="btn-row">
         <button
           class="action-btn primary-btn"
-          @click="handleSubmit"
+          @click="HandleuniqiManuscript"
           :disabled="!manuscriptName || !modelSelected || isLoading"
         >
           <span v-if="!isLoading">Submit</span>

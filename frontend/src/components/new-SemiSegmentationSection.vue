@@ -1,6 +1,5 @@
 <template>
   <div class="manuscript-viewer">
-    <!-- Top Toolbar: Collapsible -->
     <div class="toolbar">
       <h10>{{ manuscriptNameForDisplay }} - Page {{ currentPageForDisplay }}</h10>
       <div v-show="!isToolbarCollapsed" class="toolbar-controls">
@@ -111,7 +110,6 @@
       </div>
     </div>
 
-    <!-- Main Content: Visualization Area -->
     <div class="visualization-container" ref="container">
       <div v-if="isProcessingSave" class="processing-save-notice">
         Saving graph and processing... Please wait.
@@ -194,8 +192,6 @@
         </svg>
       </div>
     </div>
-
-    <!-- Bottom Panel: Collapsible -->
   </div>
 </template>
 
@@ -204,6 +200,7 @@ import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue'
 import { useAnnotationStore } from '@/stores/annotationStore'
 import { generateLayoutGraph } from './layout-analysis-utils/LayoutGraphGenerator.js'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const props = defineProps({
   manuscriptName: {
@@ -246,22 +243,23 @@ const selectedNodes = ref([])
 const tempEndPoint = ref(null)
 const isDKeyPressed = ref(false)
 const isAKeyPressed = ref(false)
-const isEKeyPressed = ref(false) // For holding E
+const isEKeyPressed = ref(false)
 const hoveredNodesForMST = reactive(new Set())
 const container = ref(null)
 const svgOverlayRef = ref(null)
 
-// --- State for region labeling ---
-const regionLabels = reactive({}) // Maps node index to a region label (0, 1, 2...)
-const textlines = ref({}) // Maps textline ID to a list of node indices
-const nodeToTextlineMap = ref({}) // Maps node index to its textline ID
+const regionLabels = reactive({})
+const textlines = ref({})
+const nodeToTextlineMap = ref({})
 const hoveredTextlineId = ref(null)
-const currentLabelIndex = ref(0) // The current label to apply (0, 1, 2, ...)
+const currentLabelIndex = ref(0)
 const labelColors = ['#448aff', '#ffeb3b', '#4CAF50', '#f44336', '#9c27b0', '#ff9800'] // Colors for different labels
 
 const scaleFactor = 1.0
 const NODE_HOVER_RADIUS = 7
 const EDGE_HOVER_THRESHOLD = 5
+
+const Manuscriptlayouturl = import.meta.env.VITE_BACKEND_URL + '/manuscripts/delete-annotation-log'
 
 const manuscriptNameForDisplay = computed(() => localManuscriptName.value)
 const currentPageForDisplay = computed(() => localCurrentPage.value)
@@ -437,13 +435,13 @@ const getNodeColor = (nodeIndex) => {
 
   if (regionLabelingModeActive.value) {
     if (hoveredTextlineId.value !== null && hoveredTextlineId.value === textlineId) {
-      return '#ff4081' // Hot pink for hovered textline
+      return '#ff4081'
     }
     const label = regionLabels[nodeIndex]
     if (label !== undefined && label > -1) {
       return labelColors[label % labelColors.length]
     }
-    return '#9e9e9e' // Grey for unlabeled nodes in this mode
+    return '#9e9e9e'
   }
 
   if (isAKeyPressed.value && hoveredNodesForMST.has(nodeIndex)) return '#00bcd4'
@@ -511,7 +509,6 @@ const handleSvgMouseMove = (event) => {
   if (regionLabelingModeActive.value) {
     let newHoveredTextlineId = null
 
-    // 1. Check for node hover first (more precise)
     for (let i = 0; i < workingGraph.nodes.length; i++) {
       const node = workingGraph.nodes[i]
       if (Math.hypot(mouseX - scaleX(node.x), mouseY - scaleY(node.y)) < NODE_HOVER_RADIUS) {
@@ -520,7 +517,6 @@ const handleSvgMouseMove = (event) => {
       }
     }
 
-    // 2. If no node hovered, check for edge hover
     if (newHoveredTextlineId === null) {
       for (const edge of workingGraph.edges) {
         const n1 = workingGraph.nodes[edge.source]
@@ -544,7 +540,6 @@ const handleSvgMouseMove = (event) => {
       }
     }
 
-    // 3. Update the hovered textline ID
     hoveredTextlineId.value = newHoveredTextlineId
 
     // 4. Apply label if key is pressed
@@ -576,10 +571,24 @@ const labelTextline = () => {
   }
 }
 
+const Delete_annotation_log = async (manuscript_name, page) => {
+  console.log(manuscript_name, page)
+  try {
+    const deletereponse = await axios.delete(Manuscriptlayouturl, {
+      data: {
+        manuscript_name,
+        page,
+      },
+    })
+  } catch (error) {
+    console.error('Error deleting manuscript:', error)
+  }
+}
+
 const handleGlobalKeyDown = (e) => {
+
   const key = e.key.toLowerCase()
 
-  // General hotkeys that work in multiple modes
   if (key === 's' && !e.repeat) {
     if (
       (editModeActive.value || regionLabelingModeActive.value) &&
@@ -587,10 +596,12 @@ const handleGlobalKeyDown = (e) => {
       !isProcessingSave.value
     ) {
       e.preventDefault()
+      Delete_annotation_log(localManuscriptName.value, localCurrentPage.value)
       saveAndGoNext()
     }
     return
   }
+
   if (key === 'w' && !e.repeat) {
     e.preventDefault()
     editModeActive.value = !editModeActive.value

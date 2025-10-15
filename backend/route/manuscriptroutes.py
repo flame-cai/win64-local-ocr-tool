@@ -117,11 +117,11 @@ def delete_manuscript():
             .first()
         )
 
-        if not manuscript:
-            return jsonify({"message": "No matching manuscript found for deletion."}), 404
+        if manuscript:
+            db.delete(manuscript)
+            db.commit()
 
-        db.delete(manuscript)
-        db.commit()
+        
         deleted_count = (
             db.query(AnnotationLog)
             .filter(
@@ -131,10 +131,11 @@ def delete_manuscript():
             .delete(synchronize_session=False)
         )
 
-        if deleted_count == 0:
-            return jsonify({"message": "No matching annotation logs found for deletion."}), 404
+        if deleted_count >0:
+            db.commit()
+       
 
-        db.commit()
+        
 
         root_directory = current_app.config.get("MANUSCRIPTS_ROOT", "instance/manuscripts")
         manuscript_folder = os.path.join(root_directory, data["manuscript_name"])
@@ -155,3 +156,87 @@ def delete_manuscript():
     finally:
         if db:
             db.close()
+
+
+
+
+
+@manuscript_bp.route("/delete-annotation-log", methods=["DELETE"])
+def delete_annotation_log():
+    db = None
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"message": "Invalid JSON payload"}), 400
+
+        required_fields = ["manuscript_name", "page"]
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({"message": f"Missing required data fields: {', '.join(missing_fields)}"}), 400
+
+        db = next(get_db())
+
+       
+        deleted_count = (
+            db.query(AnnotationLog)
+            .filter(
+                AnnotationLog.manuscript_name == data["manuscript_name"],
+                AnnotationLog.page == data["page"],
+            )
+            .delete(synchronize_session=False)
+        )
+
+        if deleted_count == 0:
+            return jsonify({"message": "No matching annotation logs found for deletion."}), 404
+
+        db.commit()
+        return jsonify({"message": f"Deleted {deleted_count} annotation log(s)."}), 200  
+
+
+    except Exception as e:
+        if db:
+            db.rollback()
+        print(f"Error deleting manuscript: {e}")
+        return jsonify({"message": "Server error: Failed to delete manuscript."}), 500
+
+    finally:
+        if db:
+            db.close()
+
+
+
+@manuscript_bp.route("/check-savemanuscript", methods=["POST"])
+def check_save():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"message": "Invalid JSON payload"}), 400
+
+        if "manuscript_name" not in data:
+            return jsonify({"message": "Missing required field: manuscript_name"}), 400
+
+        root_directory = current_app.config.get("MANUSCRIPTS_ROOT", "instance/manuscripts")
+        manuscript_folder = os.path.join(root_directory, data["manuscript_name"])
+        lines_folder = os.path.join(manuscript_folder, "lines")
+
+        if not os.path.exists(manuscript_folder):
+            return jsonify({
+                "message": "Manuscript folder not found.",
+                "exist": False
+            }), 404
+
+        if os.path.exists(lines_folder):
+            return jsonify({
+                "message": "Manuscript and lines folder found.",
+                "exist": True
+            }), 200
+        else:
+            return jsonify({
+                "message": "Manuscript found but lines folder not found.",
+                "exist": False
+            }), 200
+
+    except Exception as e:
+        print(f"Error checking manuscript: {e}")
+        return jsonify({"message": "Server error: Failed to check manuscript."}), 500
+ 

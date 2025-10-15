@@ -1,4 +1,3 @@
-<!--  -->
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -16,22 +15,67 @@ const RECOGNITION_URL = import.meta.env.VITE_BACKEND_URL + '/recognise'
 const fetchManuscriptsurl =
   import.meta.env.VITE_BACKEND_URL + '/manuscripts/get-manuscripts/' + userid
 const deleteManuscripturl = import.meta.env.VITE_BACKEND_URL + '/manuscripts/delete-manuscript'
+const check_manuscriptsaveURL =
+  import.meta.env.VITE_BACKEND_URL + '/manuscripts/check-savemanuscript'
 
 const goToNewManuscript = () => router.push('/new/upload')
+
 const goToEditManuscript = (name, image) => {
   const cleanString = image.replace(/^\[|\]$/g, '')
-
   const imageArray = cleanString.split(',').map((item) => item.trim())
-
   const firstImage = imageArray[0].split('.')[0].replace(/['"]+/g, '')
   router.push(`/edit/${name}/${firstImage}`)
 }
 
-// Annotate Text button logic
+const checkManuscriptLines = async (manuscript_name) => {
+  try {
+    const response = await axios.post(check_manuscriptsaveURL, {
+      manuscript_name,
+    })
+    return response.data.exist
+  } catch (error) {
+    console.error('Error checking lines folder:', error)
+    return false
+  }
+}
+
+const fetchManuscripts = async () => {
+  try {
+    isLoading.value = true
+    const response = await axios.get(fetchManuscriptsurl)
+    manuscripts.value = response.data.manuscripts || []
+
+    for (const m of manuscripts.value) {
+      m.hasLines = await checkManuscriptLines(m.manuscript_name)
+    }
+  } catch (error) {
+    console.error('Error fetching manuscripts:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const deleteManuscript = async (manuscript_name, model_selected) => {
+  try {
+    isLoading.value = true
+    const deletereponse = await axios.delete(deleteManuscripturl, {
+      data: { userid, manuscript_name, model_selected },
+    })
+
+    if (deletereponse.status === 200) {
+      await fetchManuscripts()
+    }
+  } catch (error) {
+    console.error('Error deleting manuscript:', error)
+    alert('Failed to delete manuscript.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const goToAnnotateManuscript = async (m) => {
   try {
-    isLoading.value = true // Show loading overlay
-
+    isLoading.value = true
     const response = await fetch(RECOGNITION_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -42,7 +86,6 @@ const goToAnnotateManuscript = async (m) => {
     const manuscript_name = Object.values(object)[0][0].manuscript_name
     const selected_model = Object.values(object)[0][0].selected_model
 
-    // Seed recognitions
     annotationStore.recognitions[manuscript_name] = {}
     for (const page of Object.keys(object)) {
       annotationStore.recognitions[manuscript_name][page] = {}
@@ -66,38 +109,6 @@ const goToAnnotateManuscript = async (m) => {
   } catch (error) {
     console.error('Error fetching recognition:', error)
     alert('Failed to load manuscript for annotation.')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Fetch manuscripts
-const fetchManuscripts = async () => {
-  try {
-    const response = await axios.get(fetchManuscriptsurl)
-    manuscripts.value = response.data.manuscripts || []
-  } catch (error) {
-    console.error('Error fetching manuscripts:', error)
-  }
-}
-const deleteManuscript = async (manuscript_name, model_selected) => {
-  try {
-    isLoading.value = true
-    const deletereponse = await axios.delete(deleteManuscripturl, {
-      data: {
-        userid,
-        manuscript_name,
-        model_selected,
-      },
-    })
-
-    if (deletereponse.status === 200) {
-      fetchManuscripts()
-      isLoading.value = false
-    }
-  } catch (error) {
-    console.error('Error deleting manuscript:', error)
-    alert('Failed to delete manuscript.')
   } finally {
     isLoading.value = false
   }
@@ -144,15 +155,25 @@ onMounted(() => {
             }}
           </p>
           <p class="manuscript-detail">Date: {{ new Date(m.created_at).toLocaleDateString() }}</p>
+
+          <p class="manuscript-detail">
+            <span v-if="!m.hasLines" class="lines-missing">Layout unsaved ⚠️</span>
+          </p>
         </div>
+
         <div class="manuscript-actions">
           <button
             class="action-btn"
             @click="goToEditManuscript(m.manuscript_name, m.fileimagename)"
           >
-            Edit Layout
+            {{ !m.hasLines ? 'Save layout' : 'Edit layout' }}
           </button>
-          <button class="action-btn secondary-btn" @click="goToAnnotateManuscript(m)">
+          <button
+            class="action-btn secondary-btn"
+            :disabled="!m.hasLines"
+            :class="{ disabled: !m.hasLines }"
+            @click="goToAnnotateManuscript(m)"
+          >
             Annotate Text
           </button>
         </div>
@@ -162,10 +183,11 @@ onMounted(() => {
     <!-- Loading overlay -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
-      <p> process is underway, please wait...</p>
+      <p>Process is underway, please wait...</p>
     </div>
   </div>
 </template>
+
 <style scoped>
 .main-container {
   display: flex;
@@ -214,14 +236,17 @@ onMounted(() => {
 .primary-btn:hover {
   background-color: #45a049;
   border-color: #45a049;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
 }
 
 .secondary-btn {
   color: #4caf50;
   background-color: transparent;
   border: 1px solid #4caf50;
+}
+
+.secondary-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .secondary-btn:hover {
@@ -255,7 +280,6 @@ onMounted(() => {
 .manuscript-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
 }
 
 .manuscript-info {
@@ -265,6 +289,7 @@ onMounted(() => {
   color: #555;
   margin-bottom: 16px;
 }
+
 .manuscript-name {
   display: flex;
   align-items: center;
@@ -310,6 +335,16 @@ onMounted(() => {
   margin: 0;
 }
 
+.lines-ok {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.lines-missing {
+  color: #e53935;
+  font-weight: 600;
+}
+
 .manuscript-actions {
   display: flex;
   justify-content: flex-end;
@@ -319,43 +354,6 @@ onMounted(() => {
   border-top: 1px solid #eee;
 }
 
-.manuscript-card .action-btn {
-  margin-left: 0;
-}
-
-@media (max-width: 1400px) {
-  .manuscript-list-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 1024px) {
-  .manuscript-list-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .header-section {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 0 16px;
-  }
-
-  .header-section h1 {
-    margin-bottom: 10px;
-  }
-
-  .manuscript-list-grid {
-    grid-template-columns: 1fr;
-    gap: 15px;
-    padding: 0 16px;
-  }
-
-  .manuscript-actions {
-    justify-content: space-between;
-  }
-}
 .loading-overlay {
   position: fixed;
   top: 0;
@@ -369,6 +367,7 @@ onMounted(() => {
   justify-content: center;
   z-index: 9999;
 }
+
 .spinner {
   border: 6px solid #f3f3f3;
   border-top: 6px solid #4caf50;
@@ -378,6 +377,7 @@ onMounted(() => {
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);
