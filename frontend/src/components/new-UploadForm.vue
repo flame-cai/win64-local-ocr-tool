@@ -17,6 +17,8 @@ const messageType = ref('')
 const isLoading = ref(false)
 const fileCount = ref(0)
 const shownameerror = ref(false)
+const progress = ref(0)
+let progressInterval = null
 
 const router = useRouter()
 
@@ -24,6 +26,7 @@ const user = JSON.parse(localStorage.getItem('user') || '{}')
 const userId = user.userid || ''
 const username = user.username || ''
 
+// --- message helper ---
 const showMessage = (text, type = 'error') => {
   message.value = text
   messageType.value = type
@@ -32,21 +35,50 @@ const showMessage = (text, type = 'error') => {
     messageType.value = ''
   }, 3000)
 }
+
+// --- progress logic ---
+const startProgress = () => {
+  progress.value = 0
+  if (progressInterval) clearInterval(progressInterval)
+
+  const totalTime = Math.max(fileCount.value, 1) * 30 * 1000 // ms
+  const updateInterval = 500 // ms
+  const step = 100 / (totalTime / updateInterval)
+
+  progressInterval = setInterval(() => {
+    if (progress.value < 99) {
+      progress.value += step
+    } else {
+      clearInterval(progressInterval)
+    }
+  }, updateInterval)
+}
+
+const completeProgress = () => {
+  if (progressInterval) clearInterval(progressInterval)
+  progress.value = 100
+  setTimeout(() => {
+    progress.value = 0
+  }, 1000)
+}
+
+// --- update file count display ---
 const updateFileCountDisplay = (newCount) => {
   fileCount.value = newCount
   const badgeEl = document.querySelector('#custom-preview .dz-count-badge')
   if (badgeEl) {
-    // Badge shows the count of *other* files (+N means N+1 files total)
     badgeEl.textContent = newCount > 1 ? `+${newCount - 1}` : ''
   }
 }
 
+// --- fetch models ---
 fetch(import.meta.env.VITE_BACKEND_URL + '/models')
   .then((res) => res.json())
   .then((data) => {
     models.value = data
   })
 
+// --- create manuscript record ---
 const createManuscript = async (fileNames = []) => {
   if (!manuscriptName.value || !modelSelected.value) {
     showMessage('Please fill manuscript name and select model.')
@@ -80,6 +112,8 @@ const createManuscript = async (fileNames = []) => {
     return false
   }
 }
+
+// --- handle unique manuscript name ---
 const HandleuniqiManuscript = async () => {
   shownameerror.value = false
 
@@ -109,8 +143,10 @@ const HandleuniqiManuscript = async () => {
   }
 }
 
+// --- handle submission ---
 const handleSubmit = () => {
   isLoading.value = true
+  startProgress()
   uploadForm.value.processQueue()
 }
 
@@ -136,10 +172,10 @@ onMounted(() => {
   })
 
   // --- Custom preview logic ---
-  let fileCount = 0
+  let localFileCount = 0
 
   uploadForm.value.on('addedfile', (file) => {
-    fileCount++
+    localFileCount++
     const currentFiles = uploadForm.value.getAcceptedFiles().length
     updateFileCountDisplay(currentFiles)
 
@@ -147,21 +183,19 @@ onMounted(() => {
     const imgEl = previewEl.querySelector('.dz-thumb')
     const badgeEl = previewEl.querySelector('.dz-count-badge')
 
-    // update thumbnail for the first file
-    if (fileCount === 1) {
+    if (localFileCount === 1) {
       uploadForm.value.emit('thumbnail', file, file.dataURL)
     }
 
-    // update badge count
-    if (badgeEl) badgeEl.textContent = fileCount > 1 ? `+${fileCount - 1}` : ''
+    if (badgeEl) badgeEl.textContent = localFileCount > 1 ? `+${localFileCount - 1}` : ''
   })
 
   uploadForm.value.on('removedfile', () => {
-    fileCount--
+    localFileCount--
     const currentFiles = uploadForm.value.getAcceptedFiles().length
     updateFileCountDisplay(currentFiles)
     const badgeEl = document.querySelector('.dz-count-badge')
-    if (badgeEl) badgeEl.textContent = fileCount > 1 ? `+${fileCount - 1}` : ''
+    if (badgeEl) badgeEl.textContent = localFileCount > 1 ? `+${localFileCount - 1}` : ''
   })
 
   uploadForm.value.on('sending', (file, xhr, formData) => {
@@ -170,6 +204,7 @@ onMounted(() => {
   })
 
   uploadForm.value.on('successmultiple', async (files) => {
+    completeProgress()
     if (skipLayout.value) {
       // ---- OLD FLOW ----
       const fileNames = files.map((file) => file.name)
@@ -237,6 +272,7 @@ onMounted(() => {
   })
 
   uploadForm.value.on('error', () => {
+    completeProgress()
     isLoading.value = false
   })
 })
@@ -311,6 +347,12 @@ onMounted(() => {
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
       <p>Uploading files, please wait...</p>
+
+      <!-- PROGRESS BAR -->
+      <div class="progress-wrapper">
+        <div class="progress-bar" :style="{ width: progress + '%' }"></div>
+        <span class="progress-text">{{ Math.floor(progress) }}%</span>
+      </div>
     </div>
   </div>
 </template>
@@ -431,49 +473,31 @@ onMounted(() => {
 .dz-message p {
   margin: 0;
 }
-
-/* FIX: Ensure only the first preview is visible and it is clipped */
 .custom-preview {
-  /* Set a fixed size for the preview area */
   width: 120px;
   height: 120px;
-  margin: 1rem auto; /* Center it */
+  margin: 1rem auto;
   position: relative;
-
-  /* CRITICAL: Hide all content that overflows this fixed area. 
-     This prevents the horizontally stitched image effect. */
   overflow: hidden;
-
-  /* Use flexbox to center the content within the fixed box */
   display: flex;
   justify-content: center;
   align-items: center;
-
-  /* Add a placeholder border to visualize the single slot */
   border: 2px solid #e0e0e0;
   border-radius: 8px;
 }
-
-/* CRITICAL: Hide all but the first child preview element */
 #custom-preview .dz-preview {
   display: none !important;
-  /* Dropzone adds a .dz-preview for every file. We hide all of them. */
 }
-
 #custom-preview .dz-preview:first-child {
   display: block !important;
-  /* We explicitly show only the first .dz-preview element */
   width: 120px;
   height: 120px;
-  /* Reset margins/paddings if any were added by Dropzone defaults */
   margin: 0;
   padding: 0;
-  position: absolute; /* Allows for centering */
+  position: absolute;
   top: 0;
   left: 0;
 }
-/* END FIX */
-
 .dz-thumb {
   width: 120px;
   height: 120px;
@@ -484,7 +508,6 @@ onMounted(() => {
 }
 .dz-count-badge {
   position: absolute;
-  /* Position relative to the dz-preview element */
   bottom: 4px;
   right: 4px;
   background: #4caf50;
@@ -497,7 +520,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10; /* Ensure badge is on top of the image */
+  z-index: 10;
 }
 .btn-row {
   display: flex;
@@ -559,6 +582,30 @@ onMounted(() => {
   100% {
     transform: rotate(360deg);
   }
+}
+.progress-wrapper {
+  position: relative;
+  width: 60%;
+  height: 20px;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+.progress-bar {
+  height: 100%;
+  background-color: #4caf50;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: bold;
+  color: #333;
+  font-size: 0.9rem;
 }
 @media (max-width: 768px) {
   .form-dropzone-row {

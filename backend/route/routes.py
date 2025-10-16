@@ -330,6 +330,8 @@ def make_semi_segments(manuscript_name, page):
         )
         
         request_data = request.json
+        print("request_data", request_data)
+
 
         if 'graph' in request_data:
             # ... (graph saving logic is unchanged) ...
@@ -405,19 +407,24 @@ def make_semi_segments(manuscript_name, page):
             )
         except Exception as xml_e:
             logger.error(f"Error during PAGE-XML generation: {str(xml_e)}", exc_info=True)
-        
+        #########################################################################################################################
+
+
         # ... (Text recognition and response logic is unchanged) ...
+
         recognized_line_data = {}
         model_name_from_request = request_data.get("modelName")
+
+        # this works when we create new manusript and save from there
         if model_name_from_request:
             current_app.logger.info(f"Starting text recognition for {manuscript_name}/{page} with model {model_name_from_request}.")
             manuscript_folder_path = os.path.join(MANUSCRIPTS_PATH, manuscript_name)
             recognized_line_data = recognise_single_page_characters(
                 manuscript_folder_path, model_name_from_request, manuscript_name, page
             )
-            current_app.logger.info(f"Text recognition finished for {manuscript_name}/{page}.")
-        else:
-            current_app.logger.info("No model name provided. Skipping text recognition step.")
+            current_app.logger.info(f"MODEL NAME DETECTED: {model_name_from_request}. Text recognition finished for {manuscript_name}/{page}.")
+        else: # this runs when we reopen manuscript and try to save..
+            current_app.logger.info("NO MODEL NAME DETECTED IN REQUEST. Skipping text recognition step.")
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         gc.collect()
         return Response(json.dumps({

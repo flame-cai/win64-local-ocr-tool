@@ -20,7 +20,8 @@ const check_manuscriptsaveURL =
 
 const goToNewManuscript = () => router.push('/new/upload')
 
-const goToEditManuscript = (name, image) => {
+const goToEditManuscript = (name, image, modelname) => {
+  annotationStore.modelName = modelname
   const cleanString = image.replace(/^\[|\]$/g, '')
   const imageArray = cleanString.split(',').map((item) => item.trim())
   const firstImage = imageArray[0].split('.')[0].replace(/['"]+/g, '')
@@ -164,7 +165,7 @@ onMounted(() => {
         <div class="manuscript-actions">
           <button
             class="action-btn"
-            @click="goToEditManuscript(m.manuscript_name, m.fileimagename)"
+            @click="goToEditManuscript(m.manuscript_name, m.fileimagename, m.model_selected)"
           >
             {{ !m.hasLines ? 'Save layout' : 'Edit layout' }}
           </button>

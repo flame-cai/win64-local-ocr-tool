@@ -2,7 +2,7 @@
   <div class="manuscript-viewer">
     <div class="toolbar">
       <h10>{{ manuscriptNameForDisplay }} - Page {{ currentPageForDisplay }}</h10>
-      <div v-show="!isToolbarCollapsed" class="toolbar-controls">
+      <div v-show="isToolbarCollapsed" class="toolbar-controls">
         <button @click="previousPage" :disabled="loading || isProcessingSave || isFirstPage">
           Previous
         </button>
@@ -33,7 +33,7 @@
         </div>
       </div>
       <button class="panel-toggle-btn" @click="isToolbarCollapsed = !isToolbarCollapsed">
-        {{ isToolbarCollapsed ? 'Show Toolbar' : 'Hide' }}
+        {{ !isToolbarCollapsed ? 'Show Toolbar' : 'Hide' }}
       </button>
     </div>
     <div class="bottom-panel">
@@ -586,7 +586,6 @@ const Delete_annotation_log = async (manuscript_name, page) => {
 }
 
 const handleGlobalKeyDown = (e) => {
-
   const key = e.key.toLowerCase()
 
   if (key === 's' && !e.repeat) {
@@ -823,11 +822,12 @@ const saveModifications = async () => {
     graph: workingGraph,
     modifications: modifications.value,
     regionLabels: labelsToSend,
+    modelName: annotationStore.modelName,
   }
 
-  if (annotationStore.modelName) {
-    requestBody.modelName = annotationStore.modelName
-  }
+  // if (annotationStore.modelName) {
+  //   requestBody.modelName = annotationStore.modelName
+  // }
 
   try {
     const res = await fetch(
