@@ -8,3 +8,4 @@ backend/instance
 craft_mlt_25k.pth
 devanagari.pth
 GNNs
+backend/Miniconda3-latest-Linux-x86_64.sh
