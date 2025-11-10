@@ -40,18 +40,25 @@ The application uses two AI models: [CRAFT](https://github.com/clovaai/CRAFT-pyt
 
 ### Setup the backend  
 
-# install sql
-# https://dev.mysql.com/downloads/installer/
-then create a db in the Mysql Name : {Annotation_DB} => create database Annotation_DB  
+#### 1. Install & Configure MySQL
 
-then edit file :
-backend/database/connection.py
-change the databse url :DATABASE_URL = "mysql+pymysql://root:[password]@localhost:3306/Annotation_DB"
+1. Download and install MySQL:  
+   https://dev.mysql.com/downloads/installer/
+
+2. Create a new database in MySQL:
+
+   ```sql
+   CREATE DATABASE Annotation_DB;
+   ```
+3. Change the databse url in backend/database/connection.py. Replace [password] with your actual MySQL root password.
+   ```
+   DATABASE_URL = "mysql+pymysql://root:[password]@localhost:3306/Annotation_DB"
+   ```
 
 
 
 
-Please follow the following steps to create the backend conda environment:
+#### Please follow the following steps to create the backend conda environment:
 ```
 # open terminal (or miniconda prompt) and go to the backend folder
 cd backend
