@@ -38,7 +38,19 @@ The application uses two AI models: [CRAFT](https://github.com/clovaai/CRAFT-pyt
 - Download devanagari.pth from [here](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/devanagari.zip). Make sure to unzip the devanagari.zip file to get devanagari.pth file. Put this file in the `backend/instance/models/recognition/` folder. 
 
 
-### Setup the backend
+### Setup the backend  
+
+# install sql
+# https://dev.mysql.com/downloads/installer/
+then create a db in the Mysql Name : {Annotation_DB} => create database Annotation_DB  
+
+then edit file :
+backend/database/connection.py
+change the databse url :DATABASE_URL = "mysql+pymysql://root:[password]@localhost:3306/Annotation_DB"
+
+
+
+
 Please follow the following steps to create the backend conda environment:
 ```
 # open terminal (or miniconda prompt) and go to the backend folder
