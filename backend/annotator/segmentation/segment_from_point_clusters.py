@@ -287,7 +287,7 @@ def gen_bounding_boxes(det, binarize_threshold):
 
 def load_node_features_and_labels(points_file, labels_file):
     # points = np.loadtxt(points_file, dtype=int)
-    points = np.loadtxt(points_file, dtype=float).astype(int)
+    points = np.loadtxt(points_file, dtype=float, ndmin=2).astype(int)
     with open(labels_file, "r") as f: labels = [line.strip() for line in f]
     features, filtered_labels = [], []
     for point, label in zip(points, labels):
@@ -378,11 +378,12 @@ def get_bboxes_for_lines(img, unique_labels, bounding_boxes, debug_mode=False, d
         line_type, params = detect_line_type(filtered_boxes)
 
         if line_type == 'horizontal':
-            PADDING_RATIO_V = 0.7 
-            PADDING_RATIO_H = 0.5
+            PADDING_RATIO_V = config.get('BBOX_PAD_V', 0.7) # Default to 70% if not in config
+            PADDING_RATIO_H = config.get('BBOX_PAD_H', 0.5) # Default to 50% if not in config
         else:
-            PADDING_RATIO_V = 0.5 
-            PADDING_RATIO_H = 0.7        
+            PADDING_RATIO_V = config.get('BBOX_PAD_H', 0.5) # Default to 50% if not in config
+            PADDING_RATIO_H = config.get('BBOX_PAD_V', 0.7) # Default to 70% if not in config
+     
         
         cleaned_blobs_for_line = []
         final_coords_for_line = []
@@ -523,7 +524,9 @@ def segmentLinesFromPointClusters(manuscript_name, page, upscale_heatmap=True, d
     CONFIG = {
         'BINARIZE_THRESHOLD': 0.5098,
         'CC_SIZE_THRESHOLD_RATIO': 0.4, 
-        'PAGE_MEDIAN_COLOR': int(np.median(processing_image))
+        'PAGE_MEDIAN_COLOR': int(np.median(processing_image)),
+        'BBOX_PAD_V': 0.7, # 70% vertical padding for horizontal lines
+        'BBOX_PAD_H': 0.5 # 50% horizontal
     }
 
     bounding_boxes = gen_bounding_boxes(det_resized, CONFIG['BINARIZE_THRESHOLD'])
