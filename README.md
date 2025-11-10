@@ -1,7 +1,9 @@
 # Semi-Automatic Layout Analysis and Handwritten Text Recognition Tool for Historical Devanagari Manuscripts
-[Kartik Chincholikar ](https://kartikchincholikar.github.io/), [Shagun Dwivedi ](https://shagundwivedi.github.io/), [Bharath Valaboju](https://Bharath314.github.io/), [Kaushik Gopalan](https://www.linkedin.com/in/kaushik-gopalan-b6533624/?originalSubdomain=in), [Tarinee Awasthi](https://www.linkedin.com/in/tarinee-awasthi-89883a244/), [Vinod Vidwans](https://www.linkedin.com/in/vinod-vidwans-2b57b4b/?originalSubdomain=in)
-<!-- **[Paper](https://arxiv.org/abs/2502.12534), [Project Page](https://theialab.github.io/noksr/)** -->
+[Kartik Chincholikar ](https://kartikchincholikar.github.io/), [Shagun Dwivedi ](https://shagundwivedi.github.io/), [Bharath Valaboju ](https://Bharath314.github.io/), [Shivkiran Chitkulwar ](https://github.com/SSCoderin), [Kaushik Gopalan ](https://www.linkedin.com/in/kaushik-gopalan-b6533624/?originalSubdomain=in), [Tarinee Awasthi ](https://www.linkedin.com/in/tarinee-awasthi-89883a244/), [Vinod Vidwans ](https://www.linkedin.com/in/vinod-vidwans-2b57b4b/?originalSubdomain=in)
+
+**[Paper 1](https://aclanthology.org/2025.wsc-csdh.4.pdf), [Paper 2](https://link.springer.com/chapter/10.1007/978-3-031-94171-9_13)**
 <!-- ![noksr](assets/Teaser.png) -->
+
 
 Digitizing text from historical manuscripts yields historians multiple benefits. The digitization process consists of three steps: text-line-image segmentation, text recognition from the text-line-images (and post-correction). 
 
