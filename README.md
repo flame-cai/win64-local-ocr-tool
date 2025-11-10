@@ -58,7 +58,7 @@ The application uses two AI models: [CRAFT](https://github.com/clovaai/CRAFT-pyt
 
 
 
-#### Please follow the following steps to create the backend conda environment:
+#### 2. Create backend conda environment, and run the app:
 ```
 # open terminal (or miniconda prompt) and go to the backend folder
 cd backend
