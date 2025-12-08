@@ -3,6 +3,8 @@
 <!-- **[Paper](https://arxiv.org/abs/2502.12534), [Project Page](https://theialab.github.io/noksr/)** -->
 <!-- ![noksr](assets/Teaser.png) -->
 
+## IMPORTANT: PLEASE USE THE GNN-DEV-MAIN BRANCH FOR THE LATEST VERSION OF THE TOOL
+
 Digitizing text from historical manuscripts yields historians multiple benefits. The digitization process consists of three steps: text-line-image segmentation, text recognition from the text-line-images (and post-correction). 
 
 This tool enables segmenting text-line-images from pages with diverse layouts. It represents text-lines as graphs, with characters as the nodes, and with edges connecting each character of a text-line to it's previous and next neighbour. In other words, we use nodes and edges as units of comparison and data collection instead of dense pixel-level metrics. This enables easier layout annotation, and improved performance compared to existing methods (as tested on a set of 15 pages with layouts of varying complexity, ranging from simple single-column and double-column layouts to layouts with pictures, footnotes, tables, interlinear writing, marginalia, text bleeding, staining, coloring, and irregular font sizes)
